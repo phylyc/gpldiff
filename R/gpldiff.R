@@ -295,7 +295,7 @@ fit_params <- function(data, params, hparams, tol=1e-5, max.iter=10, predict=TRU
 #' plot(fit, data);
 #' }
 #'
-gpldiff <- function(data, params, hparams, tol=1e-1, tol2=1e-1, max.iter=10, max.iter2=10, predict=TRUE, ...) {
+gpldiff <- function(data, params=NULL, hparams=NULL, tol=1e-1, tol2=1e-1, max.iter=10, max.iter2=10, predict=TRUE, ...) {
 	if (is.null(hparams)) {
 		hparams <- default_hparams();
 	}
@@ -353,6 +353,9 @@ gpldiff <- function(data, params, hparams, tol=1e-1, tol2=1e-1, max.iter=10, max
 confint.gpldiff <- function(object, parm=NULL, level=0.95, ...) {
 	alpha <- 1 - level;
 	z <- qnorm(1 - alpha/2);
+	if (is.null(object$predict)) {
+		stop("gpldiff object must be created with `predict=TRUE`");
+	}
 	r <- z * sqrt(object$predict$fvar);
 	cint <- with(object$param,
 		data.frame(lower = f - r, upper = f + r)
@@ -367,8 +370,14 @@ confint.gpldiff <- function(object, parm=NULL, level=0.95, ...) {
 #' @export
 #'
 plot.gpldiff <- function(model, data) {
-	cint <- confint(fit);
-	ylim <- c(min(cint[,1]), max(cint[,2]));
+	if (!is.null(model$predict)) {
+		cint <- confint(fit);
+		ylim <- c(min(cint[,1]), max(cint[,2]));
+	} else {
+		cint <- NULL;
+	}
+
+	idx <- order(data$x);
 	
 	plot(NA, xlim=range(data$x), ylim=ylim, xlab="x", ylab="f", las=1);
 
@@ -376,8 +385,11 @@ plot.gpldiff <- function(model, data) {
 		points(data$x, data$f);
 	}
 
-	lines(data$x, model$params$f, col="blue", lwd=2);
-	lines(data$x, cint[,1], col="grey");
-	lines(data$x, cint[,2], col="grey");
+	lines(data$x[idx], model$params$f[idx], col="blue", lwd=2);
+
+	if (!is.null(cint)) {
+		lines(data$x[idx], cint[idx,1], col="grey");
+		lines(data$x[idx], cint[idx,2], col="grey");
+	}
 }
 
