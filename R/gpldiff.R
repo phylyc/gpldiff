@@ -273,6 +273,7 @@ fit_params <- function(data, params, hparams, tol=1e-5, max.iter=10, predict=TRU
 #' @param data      observed data; list of x, g, y
 #' @param params    initial parameter values; list of f, mu, sigma
 #' @param hparams   hyperparameters; list of nu2, lambda2, alpha, beta, tau2
+#' @param adapt     whether to learn hyperparameters
 #' @param tol       tolerance at parameter level optimization
 #' @param tol2      tolerance at hyperparameter level optimization
 #' @param max.iter  maximum number of iterations at parameter level
@@ -295,42 +296,44 @@ fit_params <- function(data, params, hparams, tol=1e-5, max.iter=10, predict=TRU
 #' plot(fit, data);
 #' }
 #'
-gpldiff <- function(data, params=NULL, hparams=NULL, tol=1e-1, tol2=1e-1, max.iter=10, max.iter2=10, predict=TRUE, ...) {
+gpldiff <- function(data, params=NULL, hparams=NULL, adapt=TRUE, tol=1e-1, tol2=1e-1, max.iter=10, max.iter2=10, predict=TRUE, ...) {
 	if (is.null(hparams)) {
 		hparams <- default_hparams();
 	}
 
-	delta <- Inf;
 	niters <- 0;
-	while (delta > tol) {
-		old <- unlist(hparams);
+	if (adapt) {
+		delta <- Inf;
+		while (delta > tol) {
+			old <- unlist(hparams);
 
-		opt.lambda <- optimize(
-			function(lambda) {
-				hparams$lambda2 <- lambda^2;
-				fit_params(data, params, hparams, tol=tol, max.iter=max.iter, predict=FALSE)$evidence
-			},
-			interval = c(0, max(2*IQR(data$x), 1)),
-			maximum=TRUE,
-			tol=tol2
-		);
-		hparams$lambda2 <- opt.lambda$maximum^2;
+			opt.lambda <- optimize(
+				function(lambda) {
+					hparams$lambda2 <- lambda^2;
+					fit_params(data, params, hparams, tol=tol, max.iter=max.iter, predict=FALSE)$evidence
+				},
+				interval = c(0, max(2*IQR(data$x), 1)),
+				maximum=TRUE,
+				tol=tol2
+			);
+			hparams$lambda2 <- opt.lambda$maximum^2;
 
-		opt.nu <- optimize(
-			function(nu) {
-				hparams$nu2 <- nu^2;
-				fit_params(data, params, hparams, tol=tol, max.iter=max.iter, predict=FALSE)$evidence
-			},
-			interval = c(0, max(2*IQR(data$y), 1)),
-			maximum=TRUE,
-			tol=tol2
-		);
-		hparams$nu2 <- opt.nu$maximum^2;
+			opt.nu <- optimize(
+				function(nu) {
+					hparams$nu2 <- nu^2;
+					fit_params(data, params, hparams, tol=tol, max.iter=max.iter, predict=FALSE)$evidence
+				},
+				interval = c(0, max(2*IQR(data$y), 1)),
+				maximum=TRUE,
+				tol=tol2
+			);
+			hparams$nu2 <- opt.nu$maximum^2;
 
-		delta <- norm(as.matrix(old - unlist(hparams)), "F");
+			delta <- norm(as.matrix(old - unlist(hparams)), "F");
 
-		niters <- niters + 1;
-		if (niters >= max.iter2) break;
+			niters <- niters + 1;
+			if (niters >= max.iter2) break;
+		}
 	}
 
 	model <- fit_params(data, params, hparams, tol=tol, max.iter=max.iter, predict=predict, ...);
@@ -378,18 +381,51 @@ plot.gpldiff <- function(model, data) {
 	}
 
 	idx <- order(data$x);
-	
-	plot(NA, xlim=range(data$x), ylim=ylim, xlab="x", ylab="f", las=1);
+		
+	par(mfrow=c(3,1), mai=c(0.6, 0.7, 0.1, 0.5));	
 
+	# plot observed data
+	g <- data$g[idx] <= 0;
+	plot(NA, xlim=range(data$x), ylim=range(data$y), xlab="x", ylab="observed responses");
+	lines(data$x[idx][g], data$y[idx][g], col="grey", pch=20, type="b", lwd=2);
+	lines(data$x[idx][!g], data$y[idx][!g], col="orange", pch=20, type="b", lwd=2);
+
+	# plot latent difference f
+	plot(NA, xlim=range(data$x), ylim=ylim, xlab="x", ylab="latent difference f", las=1);
 	if (!is.null(data$f)) {
 		points(data$x, data$f);
 	}
-
-	lines(data$x[idx], model$params$f[idx], col="blue", lwd=2);
-
+	abline(h = 0, col="grey30", lty=2);
+	lines(data$x[idx], model$params$f[idx], col="grey30", lwd=2, pch=20, type="b");
 	if (!is.null(cint)) {
 		lines(data$x[idx], cint[idx,1], col="grey");
 		lines(data$x[idx], cint[idx,2], col="grey");
 	}
+
+	# plot log posterior odds
+	prob <- summary(model);
+	lodds <- log10(prob) - log10(1 - prob);
+	plot(data$x[idx], lodds[idx],
+		xlab="x", ylab="log posterior odds", col="red", type="b", pch=20, lwd=2);
+	abline(h = 0, col="grey30", lty=2);
+}
+
+#' Summarize GPLDIFF model
+#'
+#' Calculate the posterior probability that \code{f > 0}.
+#' 
+#' @param object \code{gpldiff} object
+#' @export
+#'
+summary.gpldiff <- function(object, ...) {
+	if (is.null(object$predict)) {
+		stop("gpldiff object must be created with `predict=TRUE`");
+	}
+
+	f <- object$params$f;
+	fsd <- sqrt(object$predict$fvar);
+
+	# Pr(f > 0) = 1 - Pr(f <= 0)
+	prob <- c(1 - pnorm(0, mean=f, sd=fsd));
 }
 
