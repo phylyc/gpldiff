@@ -35,13 +35,13 @@ hparams <- list(
 params <- NULL
 ```
 
-We may now fit the model by
+We can now fit the model by
 
 ```
 fit <- gpldiff(data, params, hparams)
 ```
 
-You may now view the summary statistics and generate plots:
+We can view the summary statistics and generate plots:
 
 ```
 summary(fit)
