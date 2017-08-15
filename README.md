@@ -17,9 +17,9 @@ install()
 
 The observed `data` should be inputted as a `list` consisting of
 
-- $x$, a vector containing values for the continuous independent variable
-- $g$, a vector containing `-0.5` or `0.5` for membership in control group or case group, respectively
-- $y$, a vector containing values for the continuous response variable
+- _x_, a vector containing values for the continuous independent variable
+- _g_, a vector containing `-0.5` or `0.5` for membership in control group or case group, respectively
+- _y_, a vector containing values for the continuous response variable
 
 The model hyperparameters should be fixed, while the model parameters may be inferred by the model from the data.
 
