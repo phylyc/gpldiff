@@ -24,6 +24,8 @@ The observed `data` should be inputted as a `list` consisting of
 The model hyperparameters should be fixed, while the model parameters may be inferred by the model from the data.
 
 ```
+library(gpldiff)
+
 hparams <- list(
 	nu2 = 1,
 	lambda2 = 1,
