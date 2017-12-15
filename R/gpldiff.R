@@ -254,8 +254,8 @@ fit_params <- function(data, params, hparams, tol=1e-5, max.iter=10, predict=TRU
 #' The model is
 #'
 #' \code{
-#'   K_{ij} = k(x_i, x_j);
-#'   f ~ multi_normal(0, K);
+#'    K_{ij} = k(x_i, x_j);
+#'    f ~ multi_normal(0, K);
 #'	  mu ~ normal(0, tau);
 #'	  sigma ~ inv_gamma(alpha, beta);
 #'	  y ~ normal(mu + (f .* g), sigma);
@@ -296,7 +296,7 @@ fit_params <- function(data, params, hparams, tol=1e-5, max.iter=10, predict=TRU
 #' plot(fit, data);
 #' }
 #'
-gpldiff <- function(data, params=NULL, hparams=NULL, adapt=TRUE, tol=1e-1, tol2=1e-1, max.iter=10, max.iter2=10, predict=TRUE, ...) {
+gpldiff <- function(data, params=NULL, hparams=NULL, adapt=FALSE, tol=1e-1, tol2=1e-1, max.iter=10, max.iter2=10, predict=TRUE, ...) {
 	if (is.null(hparams)) {
 		hparams <- default_hparams();
 	}
@@ -350,8 +350,10 @@ gpldiff <- function(data, params=NULL, hparams=NULL, adapt=TRUE, tol=1e-1, tol2=
 #'
 #' @export
 #' @examples
+#' \dontrun{
 #' cint <- confint(fit);
 #' with(data, mean(f >= cint$lower & f <= cint$upper));
+#' }
 #'
 confint.gpldiff <- function(object, parm=NULL, level=0.95, ...) {
 	alpha <- 1 - level;
@@ -366,21 +368,30 @@ confint.gpldiff <- function(object, parm=NULL, level=0.95, ...) {
 	cint
 }
 
+mean_center <- function(x) {
+	x - mean(x)
+}
+
 #' Plot fitted GPLDIFF model
 #'
 #' @param model \code{gpldiff} object
 #' @param data  data used to fit model
 #' @export
 #'
-plot.gpldiff <- function(model, data) {
+plot.gpldiff <- function(model, data, center=FALSE) {
 	if (!is.null(model$predict)) {
-		cint <- confint(fit);
+		cint <- confint(model);
 		ylim <- c(min(cint[,1]), max(cint[,2]));
 	} else {
 		cint <- NULL;
 	}
 
 	idx <- order(data$x);
+
+	if (center) {
+		data$y[data$g < 0] <- mean_center(data$y[data$g < 0]);
+		data$y[data$g > 0] <- mean_center(data$y[data$g > 0]);
+	}
 		
 	par(mfrow=c(3,1), mai=c(0.6, 0.7, 0.1, 0.5));	
 
@@ -406,7 +417,7 @@ plot.gpldiff <- function(model, data) {
 	prob <- summary(model);
 	lodds <- log10(prob) - log10(1 - prob);
 	plot(data$x[idx], lodds[idx],
-		xlab="x", ylab="log posterior odds", col="red", type="b", pch=20, lwd=2);
+		xlab="x", ylab="log posterior odds", col="red", type="b", pch=20, lwd=2, ylim=c(0, max(lodds[is.finite(lodds)])*1.1));
 	abline(h = 0, col="grey30", lty=2);
 }
 
