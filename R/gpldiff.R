@@ -257,7 +257,7 @@ fit_params <- function(data, params, hparams, tol=1e-5, max.iter=10, predict=TRU
 #'   K_{ij} = k(x_i, x_j);
 #'   f ~ multi_normal(0, K);
 #'	  mu ~ normal(0, tau);
-#'	  sigma ~ inv_gamma(alpha, beta);
+#'	  sigma^2 ~ inv_gamma(alpha, beta);
 #'	  y ~ normal(mu + (f .* g), sigma);
 #' }
 #'
