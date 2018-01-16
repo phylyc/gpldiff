@@ -414,8 +414,7 @@ plot.gpldiff <- function(model, data, center=FALSE) {
 	}
 
 	# plot log posterior odds
-	prob <- summary(model);
-	lodds <- log10(prob) - log10(1 - prob);
+	lodds <- summary(model, log.odds=TRUE);
 	plot(data$x[idx], lodds[idx],
 		xlab="x", ylab="log posterior odds", col="red", type="b", pch=20, lwd=2, ylim=c(0, max(lodds[is.finite(lodds)])*1.1));
 	abline(h = 0, col="grey30", lty=2);
@@ -428,7 +427,7 @@ plot.gpldiff <- function(model, data, center=FALSE) {
 #' @param object \code{gpldiff} object
 #' @export
 #'
-summary.gpldiff <- function(object, ...) {
+summary.gpldiff <- function(object, log.odds = FALSE, ...) {
 	if (is.null(object$predict)) {
 		stop("gpldiff object must be created with `predict=TRUE`");
 	}
@@ -436,7 +435,31 @@ summary.gpldiff <- function(object, ...) {
 	f <- object$params$f;
 	fsd <- sqrt(object$predict$fvar);
 
-	# Pr(f > 0) = 1 - Pr(f <= 0)
-	prob <- c(1 - pnorm(0, mean=f, sd=fsd));
+	if (log.odds) {
+		pnorm(0, mean=f, sd=fsd, lower.tail=FALSE, log=TRUE) -
+			pnorm(0, mean=f, sd=fsd, lower.tail=TRUE, log=TRUE)
+	} else {
+		# Pr(f > 0) = 1 - Pr(f <= 0)
+		pnorm(0, mean=f, sd=fsd, lower.tail=FALSE)
+	}
+}
+
+subset_gpldiff <- function(x, start, end) {
+	idx <- which(x$data$x >= start & x$data$x <= end);
+	d <- x$data;
+	m <- x$model;
+
+	x.sub <- x;
+	x.sub$data <- list(
+		J = length(idx),
+		x = d$x[idx],
+		g = d$g[idx],
+		y = d$y[idx]
+	);
+	x.sub$model$params$f <- m$params$f[idx];
+	x.sub$model$predict$fvar <-m$predict$fvar[idx];
+	x.sub$model$predict$K <-m$predict$K[idx, idx];
+
+	x.sub
 }
 
