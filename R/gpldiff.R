@@ -1,10 +1,13 @@
+# NB K refers to the kernel matrix, unless specified otherwise
+#    In the mathematical derivations, the \Sigma symbol is
+#    used in place of K.
 
 # Find mu^2 that maximizes the posterior of mu^2
 # conditioned on all other parameters and hyperparameters
-# Compute \hat{mu} = \tau^2 (y + G f) / (\tau^2 + \sigma^2)
+# Compute \hat{mu}
+#   = \frac{\tau^2}{\tau^2 + \sigma^2} \sum_{j=1}^{J} y_j - g_j f_j
 argmax_mu_lp <- function(y, g, f, sigma2, tau2) {
-	mu <- tau2 * (y + (g * f)) / (tau2 + sigma2);
-	mean(mu)
+	tau2 / (tau2 + sigma2) * sum(y - g * f)
 }
 
 # Find sigma^2 that maximizes the posterior of sigma^2
@@ -19,25 +22,26 @@ argmax_sigma2_lp <- function(y, g, f, mu, alpha, beta) {
 # Find f that maximizes the posterior of f
 # conditioned on all other parameters and hyperparameters
 # Compute \hat{f} = (S^{-1} + D)^{-1} b
+# by the Rasmussen-Williams method,
 # where
 #   S = K / sigma2
 #   D = G^2
 #   G = diag(g)
-#   b = G (y + \mu)
+#   b = G (y - \mu \vec{1})
 # For stability, compute (S^{-1} + D)^{−1} as S − S D^{1/2} B^{-1} D^{1/2} S
 # where
 #   B = I + D^{1/2} S D^{1/2}
 # Therefore,
 # (S^{-1} + D)^{-1} b = (S − S D^{1/2} B^{-1} D^{1/2} S) b
 #                     = S (I − D^{1/2} B^{-1} D^{1/2} S) b
-#                     = S (b − D^{1/2} B^{-1} D^{1/2} Sb)
+#                     = S (b − D^{1/2} B^{-1} D^{1/2} S b)
 #                     = S a
 # where
-#   a = (b − D^{1/2} B^{-1} D^{1/2} S b)
+#   a = b − D^{1/2} B^{-1} D^{1/2} S b
 # Rasmussen & Williams 2006
 argmax_f_lp_rw <- function(y, g, mu, sigma2, K) {
 	S <- K / sigma2;
-	b <- g * (y + mu);
+	b <- g * (y - mu);
 	a <- compute_a(S, b, g);
 	S %*% a
 }
@@ -45,57 +49,92 @@ argmax_f_lp_rw <- function(y, g, mu, sigma2, K) {
 # Find f that maximizes the posterior of f
 # conditioned on all other parameters and hyperparameters
 # Compute \hat{f} = (S^{-1} + D)^{-1} b directly
-# NB solve(K) costs O(n^3) time
-#    without regularization of K, solve(K) may not be invertible
+# NB Solve(K) costs O(n^3) time
+# NB Without regularization of K, solve(K) may not be invertible
 argmax_f_lp_direct <- function(y, g, mu, sigma2, K) {
-	S <- diag(g*g) + solve(K)/sigma2;
-	b <- g * (y + mu);
-	# \hat{f} = S \ b
-	solve(S, b)
+	A <- solve(K)/sigma2 + diag(g*g);
+	b <- g * (y - mu);
+	# \hat{f} = A \ b
+	solve(A, b)
 }
 
-# Compute a = (b − D^{1/2} B^{-1} D^{1/2} S b)
+# Compute a = b − D^{1/2} B^{-1} D^{1/2} S b
+# where
+#   B = I + D^{1/2} S D^{1/2}
+# Rasmussen & Williams 2006
 compute_a <- function(S, b, dsqrt) {
 	n <- nrow(S);
 	Dsqrt <- diag(dsqrt);
 
 	B <- diag(1, nrow=n, ncol=n) + (Dsqrt %*% S %*% Dsqrt);
+
+	# decompose B into L U
 	U <- chol(B);
 	L <- t(U);
+
+	# thus, B^{-1} = (L U)^{-1} = U^{-1} L^{-1}
+	# A^{-1} b == solve(A, b)
 
 	b - Dsqrt %*% solve(U, solve(L, Dsqrt %*% (S %*% b)))
 }
 
-# Compute (S^{-1} + D)^{-1} b
+# Compute \hat{f} = (S^{-1} + D)^{-1} b
+# by first inverting A = S^{-1} + D
 # where
 #   S = K / sigma2
 #   D = G^2
 #   G = diag(g)
-#   b = G (y + \mu)
+#   b = G (y - \mu)
 argmax_f_lp_invert <- function(y, g, mu, sigma2, K) {
 	Ainv <- invert_add_invert_rw(K / sigma2, g);
-	b <- g * (y + mu);
+	b <- g * (y - mu);
 	Ainv %*% b
 }
 
 argmax_f_lp <- argmax_f_lp_rw;
 
+# Compute the covariance matrix of the Laplace approximation
+# of the posterior of f conditioned on the hyperparameters
+# Compute \hat{V} = ( K^{-1} + G^2 / sigma2 )^{-1}
+# NB define D = G^2 / sigma2
+# NB invert_add_invert_rw takes Dsqrt
 f_laplace_covariance <- function(g, sigma2, K) {
 	invert_add_invert_rw(K, g / sqrt(sigma2))
 }
 
+# Compute variance vector of the Lapalce approximation
+# of the posterior of f conditioned on the hyperparameters
+# This vector consists of the diagonal elements of the covariance matrix
 f_laplace_variance <- function(g, sigma2, K) {
 	# TODO compute only diagonal elements
 	diag(f_laplace_covariance(g, sigma2, K))
 }
 
-# Compute marginal log likelihood with all the parameters marginalized out
-#   p(y | x, \psi) = \int p(y | x, \theta, \psi) d\theta
-# where \theta encompasses all the parameters and \psi the hyperparameters
-# parameter \f is approximated by Laplace approximation around the posterior mode
-# parameters \mu and \sigma^2 are approximated by the delta function
-# (i.e. no uncertainty)
-# kernel matrix K is pre-calculated based on hyperparameters \nu^2 and \lambda^2
+# Compute the laplace approximation of the log marginal likelihood (model evidence)
+#
+# Ideally, all parameters would be marginalized out
+#   p(y, \phi | x) = \int p(y | x, \theta, \phi) d\theta
+# where \theta encompasses all the parameters (f, \mu, \sigma^2)
+#       \phi are the hyperparameters (\tau^2, \alpha, \beta, \nu^2, \lambda^2)
+#       (\phi is often omitted in standard notation)
+#       x is the fixed independent variable
+#
+# However, in order to derive a closed form approximation,
+# we treat parameters \mu and \sigma^2 as fixed; thus, their hyperparameters
+# \tau^2, \alpha, and \beta must also be treated as fixed.
+#
+# Then, following the approach in Rasmussen & Williams 2006 (RW06), we use second order
+# Taylor expansion of the joint density \psi(f) at \hat{f} to approximate \psi(f),
+# resulting an approximation of the log marginal likelihood similar to
+# equation 3.32 (RW06):
+#
+# log q(y | x) \approx -(J + 2\alpha + 2) log \sigma - \frac{\beta}{\sigma^2}
+# - \frac{1}{2} \frac{1}{\sigma^2} (y - \mu \vec{1} - G \hat{f})^\top(y - \mu \vec{1} - G \hat{f})
+# - \frac{1}{2} \hat{f}^\top K^{-1} \hat{f} - log \tau
+# - \frac{1}{2}\frac{\mu^2}{\tau^2} - \frac{1}{2} log | I + K D |
+#
+# Kernel matrix K is pre-calculated based on hyperparameters \nu^2 and \lambda^2
+#
 # @param params   maximum a posteriori estimates of parameters
 # @param hparams  fixed hyperparameter values
 # TODO  Only the explicit gradient is calculated
@@ -120,38 +159,46 @@ ll_g_hparams <- function(data, params, hparams, K=NULL, gradient=FALSE) {
 	tau2 = hparams$tau2;
 
 	d <- y - mu - (g * f);
-	D <- diag(g * g / sigma2);
-	eye <- diag(1, nrow=J, ncol=J);
-	KD <- K %*% D;
+	# NB  this D is different from D in other places, hence D'
+	Dp <- diag(g * g / sigma2);
+	KDp <- K %*% Dp;
 
-	# compute \hat{f} K^{-1} \hat{f} = a^\top \hat{f}
-	# TODO avoid re-computing S, b, and a again here
+	# compute f^\top K^{-1} f
+	# since
+	#   f = S a = (K / sigma2) a
+	# thus
+	#   f^\top K^{-1} f = ((K / sigma2) a)^\top K^{-1} f
+	#                   = 1/sigma2 a^\top K K^{-1} f
+	#                   = a^\top f / sigma2
 	S <- K / sigma2;
-	b <- g * (y + mu);
+	b <- g * (y - mu);
 	a <- compute_a(S, b, g);
-	f.Kinv.f <- sum(a * f);
+	ft.Kinv.f <- sum(a * f) / sigma2;
 
-	# log marginal likelihood
+	eye <- diag(1, nrow=J, ncol=J);
+
+	# laplace approximation of the log marginal likelihood
 	ll <- - 0.5 * (
 		(J + 2*alpha + 2) * log(sigma2) +
 		2 * beta / sigma2 +
 		sum(d * d) / sigma2 +
 		log(tau2) +
 		mu * mu / tau2 +
-		f.Kinv.f +
-		det(KD + eye, log=TRUE)
+		ft.Kinv.f +
+		det(KDp + eye, log=TRUE)
 	);
 
 	if (gradient) {
+		# TODO verify
 		# compute explicit gradient of marginal likelihood w.r.t. to nu^2 and lambda^2
 
 		nu2 <- hparams$nu2;
 		lambda2 <- hparams$lambda2;
 
-		#E <- solve(eye + solve(KD));
-		E <- solve(eye + KD, KD);
+		#E <- solve(eye + solve(KDp));
+		E <- solve(eye + KDp, KDp);
 		
-		gll_nu2 <- 0.5 * (1/nu2) * (f.Kinv.f - sum(diag(E)));
+		gll_nu2 <- 0.5 * (1/nu2) * (ft.Kinv.f - sum(diag(E)));
 
 		V <- kernel_matrix(data$x, squared_kernel, lambda2=lambda2*lambda2);
 		gll_lambda2 <- 0.5 * ((t(a) %*% V) %*% f - sum((diag(E) * diag(V))));
@@ -303,6 +350,8 @@ gpldiff <- function(data, params=NULL, hparams=NULL, adapt=FALSE, tol=1e-1, tol2
 
 	niters <- 0;
 	if (adapt) {
+		# find hyperparameter values lambada and nu that maximize the log marginal likelihood
+		# NB other hyperparameters are fixed
 		delta <- Inf;
 		while (delta > tol) {
 			old <- unlist(hparams);
