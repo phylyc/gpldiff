@@ -244,7 +244,7 @@ default_hparams <- function() {
 }
 
 # Fit model parameters with hyperparameters fixed
-fit_params <- function(data, params, hparams, tol=1e-5, max.iter=10, predict=TRUE, plot=FALSE) {
+fit_params <- function(data, params, hparams, tol=1e-5, max.iter=10, predict=TRUE, plot=FALSE, fixed=NULL) {
 
 	if (is.null(hparams)) {
 		hparams <- default_hparams();
@@ -259,15 +259,30 @@ fit_params <- function(data, params, hparams, tol=1e-5, max.iter=10, predict=TRU
 		);
 	}
 
+	if (is.null(fixed)) {
+		fixed <- list(
+			mu = FALSE,
+			sigma2 = FALSE,
+			f = FALSE
+		);
+	}
+
 	K <- kernel_matrix(data$x, squared_exponential_kernel, nu2=hparams$nu2, lambda2=hparams$lambda2);
 
 	delta <- Inf;
 	niters <- 0;
 	while (delta > tol) {
 		old <- unlist(params);
-		params$f <- argmax_f_lp(data$y, data$g, params$mu, params$sigma2, K);
-		params$mu <- argmax_mu_lp(data$y, data$g, params$f, params$sigma2, hparams$tau2);
-		params$sigma2 <- argmax_sigma2_lp(data$y, data$g, params$f, params$mu, hparams$alpha, hparams$beta);
+
+		if (!fixed$f) {
+			params$f <- argmax_f_lp(data$y, data$g, params$mu, params$sigma2, K);
+		}
+		if (!fixed$mu) {
+			params$mu <- argmax_mu_lp(data$y, data$g, params$f, params$sigma2, hparams$tau2);
+		}
+		if (!fixed$sigma2) {
+			params$sigma2 <- argmax_sigma2_lp(data$y, data$g, params$f, params$mu, hparams$alpha, hparams$beta);
+		}
 
 		if (plot) {
 			graphics::plot(data$x, params$f)
