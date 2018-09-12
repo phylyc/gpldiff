@@ -52,8 +52,8 @@ argmax_f_lp_rw <- function(y, g, mu, sigma2, K) {
 # NB Solve(K) costs O(n^3) time
 # NB Without regularization of K, solve(K) may not be invertible
 argmax_f_lp_direct <- function(y, g, mu, sigma2, K) {
-	A <- solve(K) * sigma2 + diag(g*g);
-	b <- g * (y - mu);
+	A <- solve(K %*% diag(g)) * sigma2 + diag(g);
+	b <- y - mu;
 	# \hat{f} = A \ b
 	solve(A, b)
 }
