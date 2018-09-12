@@ -26,7 +26,7 @@ argmax_sigma2_lp <- function(y, g, f, mu, alpha, beta) {
 # where
 #   S = K / sigma2
 #   D = G^2
-#   G = diag(g)
+#   G = I g
 #   b = G (y - \mu \vec{1})
 # For stability, compute (S^{-1} + D)^{−1} as S − S D^{1/2} B^{-1} D^{1/2} S
 # where
