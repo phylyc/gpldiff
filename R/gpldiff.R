@@ -5,7 +5,7 @@
 # Find mu^2 that maximizes the posterior of mu^2
 # conditioned on all other parameters and hyperparameters
 # Compute \hat{mu}
-#   = \frac{\tau^2}{\tau^2 + \sigma^2} \sum_{j=1}^{J} y_j - g_j f_j
+#   = \frac{\tau^2}{J \tau^2 + \sigma^2} \sum_{j=1}^{J} y_j - g_j f_j
 argmax_mu_lp <- function(y, g, f, sigma2, tau2) {
 	tau2 / (length(y) * tau2 + sigma2) * sum(y - g * f)
 }
