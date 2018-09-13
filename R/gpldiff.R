@@ -24,7 +24,7 @@ argmax_sigma2_lp <- function(y, g, f, mu, alpha, beta) {
 # Compute \hat{f} = (S^{-1} + D)^{-1} b
 # by the Rasmussen-Williams method,
 # where
-#   S = K / sigma2
+#   S = K / sigma^2
 #   D = G^2
 #   G = I g
 #   b = G (y - \mu \vec{1})
@@ -131,16 +131,18 @@ f_laplace_variance <- function(g, sigma2, K) {
 # log q(y | x) \approx -(J + 2\alpha + 2) log \sigma - \frac{\beta}{\sigma^2}
 # - \frac{1}{2} \frac{1}{\sigma^2} (y - \mu \vec{1} - G \hat{f})^\top(y - \mu \vec{1} - G \hat{f})
 # - \frac{1}{2} \hat{f}^\top K^{-1} \hat{f} - log \tau
-# - \frac{1}{2}\frac{\mu^2}{\tau^2} - \frac{1}{2} log | I + K D |
+# - \frac{1}{2}\frac{\mu^2}{\tau^2} - \frac{1}{2} log | I + K W |
+#
+# where W = G^2 / sigma^2
 #
 # Kernel matrix K is pre-calculated based on hyperparameters \nu^2 and \lambda^2
 #
 # @param params   maximum a posteriori estimates of parameters
 # @param hparams  fixed hyperparameter values
-# TODO  Only the explicit gradient is calculated
-#       To be useful, the implicit gradient is needed too!
-#       (Rasmussen & Williams 2006, p.125)
-ll_g_hparams <- function(data, params, hparams, K=NULL, gradient=FALSE) {
+# @param hgradient  whether to calculate the gradient of the marginal
+#                   likelihood with respect to the hyperparameters
+#                   (Rasmussen & Williams 2006, p.125)
+ll_g_hparams <- function(data, params, hparams, K=NULL, hgradient=FALSE) {
 
 	if (is.null(K)) {
 		K <- kernel_matrix(data$x, squared_exponential_kernel, nu2=hparams$nu2, lambda2=hparams$lambda2);
@@ -159,17 +161,12 @@ ll_g_hparams <- function(data, params, hparams, K=NULL, gradient=FALSE) {
 	tau2 = hparams$tau2;
 
 	d <- y - mu - (g * f);
-	# NB  this D is different from D in other places, hence D'
-	Dp <- diag(g * g / sigma2);
-	KDp <- K %*% Dp;
+	W <- diag(g * g / sigma2);
+	KW <- K %*% W;
 
-	# compute f^\top K^{-1} f
-	# since
-	#   f = S a = (K / sigma2) a
-	# thus
-	#   f^\top K^{-1} f = ((K / sigma2) a)^\top K^{-1} f
-	#                   = 1/sigma2 a^\top K K^{-1} f
-	#                   = a^\top f / sigma2
+	# Ideally,
+	# ft.Kinv.f <- ft_kinv_f(y, g, f, mu, sigma2, K);
+	# but vector a is needed later
 	S <- K / sigma2;
 	b <- g * (y - mu);
 	a <- compute_a(S, b, g);
@@ -185,28 +182,42 @@ ll_g_hparams <- function(data, params, hparams, K=NULL, gradient=FALSE) {
 		log(tau2) +
 		mu * mu / tau2 +
 		ft.Kinv.f +
-		det(KDp + eye, log=TRUE)
+		det(KW + eye, log=TRUE)
 	);
 
-	if (gradient) {
-		# TODO verify
+	if (hgradient) {
 		# compute explicit gradient of marginal likelihood w.r.t. to nu^2 and lambda^2
 
 		nu2 <- hparams$nu2;
 		lambda2 <- hparams$lambda2;
 
-		#E <- solve(eye + solve(KDp));
-		E <- solve(eye + KDp, KDp);
+		E <- solve(eye + KW, KW);
 		
 		gll_nu2 <- 0.5 * (1/nu2) * (ft.Kinv.f - sum(diag(E)));
 
 		V <- kernel_matrix(data$x, squared_kernel, lambda2=lambda2*lambda2);
-		gll_lambda2 <- 0.5 * ((t(a) %*% V) %*% f - sum((diag(E) * diag(V))));
+		K.V <- K * V;
+		gll_lambda2 <- 0.5 * 1/(sigma2*sigma2) * t(a) %*% K.V %*% a -
+			0.5 * sum(diag( solve(eye + KW, K.V %*% W) ));
 
-		c(ll = ll, gll_nu2 = gll_nu2, gll_lambda2 = gll_lambda2)
+		list(evidence = ll, gradient = list(nu2 = gll_nu2, lambda2 = gll_lambda2))
 	} else {
 		ll
 	}
+}
+
+# Compute f^\top K^{-1} f
+# since
+#   f = S a = (K / sigma2) a
+# thus
+#   f^\top K^{-1} f = ((K / sigma2) a)^\top K^{-1} f
+#                   = 1/sigma2 a^\top K K^{-1} f
+#                   = a^\top f / sigma2
+ft_kinv_f <- function(y, g, f, mu, sigma2, K) {
+	S <- K / sigma2;
+	b <- g * (y - mu);
+	a <- compute_a(S, b, g);
+	sum(a * f) / sigma2
 }
 
 # Compute (S^{-1} + D)^{-1}
@@ -237,9 +248,9 @@ default_hparams <- function() {
 	list(
 		nu2 = 1,
 		lambda2 = 1,
-		alpha = 2,
-		beta = 1,
-		tau2 = 1
+		alpha = 0.1,
+		beta = 0.1,
+		tau2 = 10
 	);
 }
 
@@ -300,10 +311,30 @@ fit_params <- function(data, params, hparams, tol=1e-5, max.iter=10, predict=TRU
 			K = K
 		);
 	}
-	model$evidence <- ll_g_hparams(data, params, hparams, K);
+
+	res <- ll_g_hparams(data, params, hparams, K, hgradient=TRUE);
+	model$evidence <- res$evidence;
+	model$gradient <- res$gradient;
 	class(model) <- "gpldiff";
 
 	model
+}
+
+# Adaptive Moment Estimation
+# Computes the first and second order moments of the momentum
+# @param momentum   previous value of the moments
+# @param g  gradient
+# @param t  time step
+adam <- function(momentum, g, t, beta1=0.9, beta2=0.999) {
+	c(
+		(beta1 * momentum[1] + (1 - beta1) * g) / (1 - beta1^t),
+		(beta2 * momentum[2] + (1 - beta2) * g*g) / (1 - beta2^t)
+	)
+}
+
+# Calculate update value using ADAM learning rate
+adam_step <- function(momentum, learn.rate = 0.1, eps = 1e-8) {
+	learn.rate * momentum[1] / (sqrt(momentum[2]) + eps)
 }
 
 #' Fit Gaussian process latent difference model
@@ -336,8 +367,11 @@ fit_params <- function(data, params, hparams, tol=1e-5, max.iter=10, predict=TRU
 #' @param params    initial parameter values; list of f, mu, sigma
 #' @param hparams   hyperparameters; list of nu2, lambda2, alpha, beta, tau2
 #' @param adapt     whether to learn hyperparameters
-#' @param tol       tolerance at parameter level optimization
-#' @param tol2      tolerance at hyperparameter level optimization
+#' @param learn.rate  learning rate for hyperparameters
+#'                    (set to 0 to optimize hyperparameters using the slow
+#'                    algorithm)
+#' @param tol       minimum change in parameter values for convergence
+#' @param tol2      minimum change in log likelihood for convergence
 #' @param max.iter  maximum number of iterations at parameter level
 #' @param max.iter2 maximum number of iterations at hyperparameter level
 #' @param predict   whether to save variables required for prediction
@@ -358,7 +392,7 @@ fit_params <- function(data, params, hparams, tol=1e-5, max.iter=10, predict=TRU
 #' plot(fit, data);
 #' }
 #'
-gpldiff <- function(data, params=NULL, hparams=NULL, adapt=FALSE, tol=1e-1, tol2=1e-1, max.iter=10, max.iter2=10, predict=TRUE, ...) {
+gpldiff <- function(data, params=NULL, hparams=NULL, adapt=FALSE, learn.rate=0.2, tol=1e-1, tol2=1e-1, max.iter=10, max.iter2=10, predict=TRUE, verbose=FALSE, ...) {
 	if (is.null(hparams)) {
 		hparams <- default_hparams();
 	}
@@ -368,34 +402,69 @@ gpldiff <- function(data, params=NULL, hparams=NULL, adapt=FALSE, tol=1e-1, tol2
 		# find hyperparameter values lambada and nu that maximize the log marginal likelihood
 		# NB other hyperparameters are fixed
 		delta <- Inf;
-		while (delta > tol) {
-			old <- unlist(hparams);
-
-			opt.lambda <- optimize(
-				function(lambda) {
-					hparams$lambda2 <- lambda^2;
-					fit_params(data, params, hparams, tol=tol, max.iter=max.iter, predict=FALSE)$evidence
-				},
-				interval = c(0, max(2*IQR(data$x), 1)),
-				maximum=TRUE,
-				tol=tol2
-			);
-			hparams$lambda2 <- opt.lambda$maximum^2;
-
-			opt.nu <- optimize(
-				function(nu) {
-					hparams$nu2 <- nu^2;
-					fit_params(data, params, hparams, tol=tol, max.iter=max.iter, predict=FALSE)$evidence
-				},
-				interval = c(0, max(2*IQR(data$y), 1)),
-				maximum=TRUE,
-				tol=tol2
-			);
-			hparams$nu2 <- opt.nu$maximum^2;
-
-			delta <- norm(as.matrix(old - unlist(hparams)), "F");
-
+		old.ll <- -Inf;
+		m.lambda2 <- c(0.0, 0.0);
+		m.nu2 <- c(0.0, 0.0);
+		while (delta > tol2) {
 			niters <- niters + 1;
+
+			if (learn.rate > 0) {
+
+				res <- fit_params(data, params, hparams, tol=tol, max.iter=max.iter, predict=FALSE);
+
+				hparams$lambda2 <- hparams$lambda2 + learn.rate * res$gradient$lambda2;
+				hparams$nu2 <- hparams$nu2 + learn.rate * res$gradient$nu2;
+
+				# ADAM did not seem to work well
+
+				#m.lambda2 <- adam(m.lambda2, res$gradient$lambda2, niters);
+				#m.nu2 <- adam(m.nu2, res$gradient$nu2, niters);
+				#hparams$lambda2 <- hparams$lambda2 + adam_step(m.lambda2, learn.rate=1);
+				#hparams$nu2 <- hparams$nu2 + adam_step(m.nu2, learn.rate=1);
+
+				ll <- res$evidence;
+			} else {
+
+				# NB Ideally, we would use `optim` and supply the gradient 
+				# and use the BFGS or CG method...
+				# Howeer, `optim` requires the objective function and gradient
+				# function separately, this requires two expensive calls per
+				# iteration within `optim`!
+
+				opt.lambda <- optimize(
+					function(lambda) {
+						hparams$lambda2 <- lambda^2;
+						fit_params(data, params, hparams, tol=tol, max.iter=max.iter,
+											 predict=FALSE)$evidence
+					},
+					interval = c(0, max(2*IQR(data$x), 1)),
+					maximum=TRUE,
+					tol=tol
+				);
+				hparams$lambda2 <- opt.lambda$maximum^2;
+
+				opt.nu <- optimize(
+					function(nu) {
+						hparams$nu2 <- nu^2;
+						fit_params(data, params, hparams, tol=tol, max.iter=max.iter,
+											 predict=FALSE)$evidence
+					},
+					interval = c(0, max(2*IQR(data$y), 1)),
+					maximum=TRUE,
+					tol=tol
+				);
+				hparams$nu2 <- opt.nu$maximum^2;
+
+				ll <- opt.nu$objective;
+			}
+
+			if (verbose) {
+				message("log evidence = ", ll);
+			}
+
+			delta <- ll - old.ll;
+			old.ll <- ll;
+
 			if (niters >= max.iter2) break;
 		}
 	}
