@@ -404,7 +404,7 @@ adam_step <- function(momentum, learn.rate = 0.01, eps = 1e-8) {
 #' plot(fit, data);
 #' }
 #'
-gpldiff <- function(data, params=NULL, hparams=NULL, adapt=c("none", "GD", "GDM", "ADAM", "L-BFGS-B", "CG", "Brent"), learn.rate=0.01, tol=1e-1, tol2=1e-1, max.iter=10, max.iter2=10, predict=TRUE, verbose=FALSE, ...) {
+gpldiff <- function(data, params=NULL, hparams=NULL, adapt=c("none", "GD", "GDM", "ADAM", "L-BFGS-B", "CG", "Brent"), learn.rate=0.2, tol=1e-1, tol2=1e-1, max.iter=10, max.iter2=10, predict=TRUE, verbose=FALSE, ...) {
 	if (is.null(hparams)) {
 		hparams <- default_hparams();
 	}
@@ -445,21 +445,24 @@ gpldiff <- function(data, params=NULL, hparams=NULL, adapt=c("none", "GD", "GDM"
 				ll <- res$evidence;
 
 				if (verbose) {
-					message("hparams ", hparams$lambda2, " ", hparams$nu2)
+					message("hparams ", hparams$nu2, " ", hparams$lambda2)
 					message("hgrads ", res$gradient$lambda2, " ", res$gradient$nu2)
 				}
 
 				if (ll < old.ll) {
-					# ll has gotten worse: backtrack and stop
-					if (verbose) {
-						message("log evidence = ", ll, " ... Backtrack and stop")
-					}
+					# ll has gotten worse: backtrack and reduce the learning rate
 					hparams <- hparams.old;
-					niters <- niters - 1;
-					break;
+					learn.rate <- learn.rate * 0.5;
+					old.ll <- -Inf;
+					if (verbose) {
+						message("log evidence = ", ll, " ... Backtrack")
+						message("learn rate = ", learn.rate)
+					}
+
+					next;
 				} else {
-					hparams.old <- hparams;
 					# continue updating hyperparameters
+					hparams.old <- hparams;
 					hparams$lambda2 <- hparams$lambda2 + learn.rate * res$gradient$lambda2;
 					hparams$nu2 <- hparams$nu2 + learn.rate * res$gradient$nu2;
 				}
@@ -487,9 +490,9 @@ gpldiff <- function(data, params=NULL, hparams=NULL, adapt=c("none", "GD", "GDM"
 				hparams$nu2 <- hparams$nu2 - step.nu2;
 
 				if (verbose) {
-					message("ADAM M1 ", m.lambda2[1], " ", m.nu2[1]);
-					message("ADAM M2 ", m.lambda2[2], " ", m.nu2[2]);
-					message("ADAM Step ", step.lambda2, " ", step.nu2)
+					message("ADAM M1 ", m.nu2[1], " ", m.lambda2[1]);
+					message("ADAM M2 ", m.nu2[2], " ", m.lambda2[2]);
+					message("ADAM Step ", step.nu2, " ", step.lambda2)
 				}
 
 			} else if (adapt == "L-BFGS-B") {
@@ -513,7 +516,9 @@ gpldiff <- function(data, params=NULL, hparams=NULL, adapt=c("none", "GD", "GDM"
 					fn = function(par) {
 						hparams$nu2 <- exp(par[1])^2;
 						hparams$lambda2 <- exp(par[2])^2;
-						message("hparams ", hparams$lambda2, " ", hparams$nu2)
+						if (verbose) {
+							message("hparams ", hparams$nu2, " ", hparams$lambda2)
+						}
 						fit_params(data, params, hparams, tol=tol, max.iter=max.iter,
 											 predict=FALSE)$evidence
 					},
@@ -533,7 +538,6 @@ gpldiff <- function(data, params=NULL, hparams=NULL, adapt=c("none", "GD", "GDM"
 				ll <- opt$value;
 
 			} else {
-
 
 				opt.lambda <- optimize(
 					function(lambda) {
@@ -585,7 +589,7 @@ gpldiff <- function(data, params=NULL, hparams=NULL, adapt=c("none", "GD", "GDM"
 	model$niters <- c(model$niters, niters);
 
 	if (verbose) {
-		message("log evidence = ", model$evidence);
+		message("final log evidence = ", model$evidence);
 	}
 
 	model

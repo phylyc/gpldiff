@@ -97,18 +97,19 @@ fixed <- list(
 # if sigma2 is constrained to known value, then 
 # the fit of f is much poorer
 
-fit <- gpldiff(data, params=params, hparams=hparams, adapt=FALSE, fixed=fixed);
+fit <- gpldiff(data, params=params, hparams=hparams, fixed=fixed);
 str(fit)
 
 # Optimizing hyperparameters now works!
 load_all("../R");
-fit.adapt <- gpldiff(data, adapt="GD", tol2=1e-2, max.iter2=50, learn.rate=0.01, verbose=TRUE);
+fit.adapt <- gpldiff(data, adapt="GD", tol2=1e-2, max.iter2=50, learn.rate=0.2, verbose=TRUE);
 fit.adapt2 <- gpldiff(data, adapt="Brent", tol2=1e-2, max.iter2=20, learn.rate=0, verbose=TRUE);
 fit.adapt3 <- gpldiff(data, adapt="L-BFGS-B", tol2=1e-2, max.iter2=20, learn.rate=0, verbose=TRUE);
 
 str(fit.adapt)
 str(fit.adapt2)
 
+fit$evidence
 fit.adapt$evidence
 fit.adapt2$evidence
 fit.adapt3$evidence
