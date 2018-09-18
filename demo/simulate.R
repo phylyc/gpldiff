@@ -1,20 +1,46 @@
 library(devtools);
 load_all("../R");
 
+rcurve <- function(x, nknots=12) {
+	z <- rep(0, N);
+	nonzeros <- round(runif(rpois(1, 10), 1, N));
+	z[nonzeros] <- runif(length(nonzeros));
+	w <- rbeta(N, 1, 10);
+	w[nonzeros] <- 1;
+	s <- smooth.spline(x, z, w, lambda=1e-4, nknots=nknots, keep.data=FALSE);
+	s$y
+}
+
+rpolynomial <- function(x, dmin=c(1, 10)) {
+	# degree of polynomial
+	d <- round(runif(1, dmin[1], dmin[2]));
+	# coefficients
+	beta <- rbeta(d, 0.5, 0.5) - 0.5;
+	X <- matrix(unlist(lapply(0:(d-1), function(n) x^n)), nrow=length(x));
+
+	list(
+		y = X %*% beta,
+		beta = beta
+	)
+}
+
 # simulate non-linear data of two groups with missingness
 
-set.seed(2);
+set.seed(6);
 
 # generate data
 
 N <- 200;
-offset <- -0.038 * 2;
-sigma <- 0.1;
+offset <- 0;
+sigma <- 0.05;
 
-x <- sort(seq(0, 5*pi, length.out=N) + rnorm(N, sd = 0.1));
+x <- sort(seq(0, 10, length.out=N) + rnorm(N, sd = 0.1));
 
-m_a <- sin(x);
-m_b <- sin(x/(pi/2) - 7*pi/2) + offset;
+m_a <- rcurve(x);
+m_b <- rcurve(x) + offset;
+
+#m_a <- sin(x);
+#m_b <- sin(x/(pi/2) - 7*pi/2) + offset;
 mu <- mean((m_b + m_a) / 2);
 
 y_a <- rnorm(N, mean = m_a, sd = sigma);
@@ -44,7 +70,7 @@ data <- list(
 
 hparams <- list(
 	nu2 = 1,
-	lambda2 = 1,
+	lambda2 = 2,
 	alpha = 0.1,
 	beta = 0.1,
 	tau2 = 10
@@ -76,10 +102,17 @@ str(fit)
 
 # Optimizing hyperparameters now works!
 load_all("../R");
-fit.adapt <- gpldiff(data, adapt=TRUE, tol2=1e-2, max.iter2=20, verbose=TRUE);
+fit.adapt <- gpldiff(data, adapt=TRUE, tol2=1e-2, max.iter2=50, learn.rate=0.01, verbose=TRUE);
+fit.adapt2 <- gpldiff(data, adapt=TRUE, tol2=1e-2, max.iter2=20, learn.rate=0, verbose=TRUE);
 
 str(fit.adapt)
+str(fit.adapt2)
+
+fit.adapt$evidence
+fit.adapt2$evidence
+
 fit <- fit.adapt;
+fit <- fit.adapt2;
 
 # plot data
 
@@ -95,8 +128,11 @@ points(x, y_b, col=4);
 
 plot(x, y, col=as.numeric(g > 0)+3, main = "Observed data with noise and missingness");
 
-plot(x, f, main = "difference in mean", type="l");
-points(x, fit$params$f, main = "E[f]")
+plot(x, f, main = "difference in mean", type="l", ylim=c(-0.6, 0.6));
+fsd <- sqrt(fit$predict$fvar);
+points(x, fit$params$f, main = "E[f]", col="red")
+lines(x, fit$params$f - 2 * fsd, main = "E[f]", col="red")
+lines(x, fit$params$f + 2 * fsd, main = "E[f]", col="red")
 
 
 library(ggplot2);
