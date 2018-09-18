@@ -446,7 +446,7 @@ gpldiff <- function(data, params=NULL, hparams=NULL, adapt=c("none", "GD", "GDM"
 
 				if (verbose) {
 					message("hparams ", hparams$nu2, " ", hparams$lambda2)
-					message("hgrads ", res$gradient$lambda2, " ", res$gradient$nu2)
+					message("hgrads ", res$gradient$nu2, " ", res$gradient$lambda2)
 				}
 
 				if (ll < old.ll) {
