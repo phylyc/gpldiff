@@ -7,19 +7,21 @@ set.seed(2);
 
 # generate data
 
-N <- 100;
-N <- 500;
+N <- 200;
+offset <- -0.038 * 2;
 sigma <- 0.1;
 
 x <- sort(seq(0, 5*pi, length.out=N) + rnorm(N, sd = 0.1));
 
 m_a <- sin(x);
-m_b <- sin(x/(pi/2) - 7*pi/2) + 0.5;
+m_b <- sin(x/(pi/2) - 7*pi/2) + offset;
+mu <- mean((m_b + m_a) / 2);
 
 y_a <- rnorm(N, mean = m_a, sd = sigma);
 y_b <- rnorm(N, mean = m_b, sd = sigma);
 
 g <- sample(c(-0.5, 0.5), N, replace=TRUE);
+#g <- sample(c(-1, 1), N, replace=TRUE);
 # either one group or the other is observed
 # group probabilities are equal; each group has ~50% missingness
 y <- ifelse(g > 0, y_b, y_a);
@@ -40,8 +42,44 @@ data <- list(
 	sigma = sigma
 );
 
-fit <- gpldiff(data);
+hparams <- list(
+	nu2 = 1,
+	lambda2 = 1,
+	alpha = 0.1,
+	beta = 0.1,
+	tau2 = 10
+);
 
+# initial guess
+params <- list(
+	mu = 0,
+	#mu = mu,
+	sigma2 = 2,
+	#sigma2 = sigma^2,
+	f = rep(0, data$J)
+	#f = f
+);
+
+fixed <- list(
+	mu = FALSE,
+	sigma2 = FALSE,
+	f = FALSE
+);
+
+# sigma2 needs to be overestimated for better fit... why?
+# set to 0.1^2 = 0.01 but estimate is ~0.3
+# if sigma2 is constrained to known value, then 
+# the fit of f is much poorer
+
+fit <- gpldiff(data, params=params, hparams=hparams, adapt=FALSE, fixed=fixed);
+str(fit)
+
+# Optimizing hyperparameters now works!
+load_all("../R");
+fit.adapt <- gpldiff(data, adapt=TRUE, tol2=1e-2, max.iter2=20, verbose=TRUE);
+
+str(fit.adapt)
+fit <- fit.adapt;
 
 # plot data
 
@@ -113,8 +151,8 @@ qdraw(
 		geom_hline(aes(yintercept=0), linetype="dashed", colour="grey30") +
 		scale_colour_manual(name="difference",values=cols) +
 		geom_line(aes(y=f, colour="truth"), lwd=1) +
-		xlab("position") + ylab("group difference") + guides(colour=FALSE) +
-		ylim(-2, 3.5)
+		xlab("position") + ylab("group difference") + guides(colour=FALSE)
+		#ylim(-2, 3.5)
 	,
 	height = 2, width = 6,
 	file = "truth-diff.pdf"
@@ -141,8 +179,8 @@ qdraw(
 		geom_line(aes(y=f_hat, colour="estimate"), lwd=1) +
 		geom_ribbon(aes(ymin = f_hat_min, ymax = f_hat_max), fill=cols["estimate"], alpha=0.3) +
 		geom_segment(aes(x=start, xend=end, y=3, yend=3), data=regions, lwd=2) +
-		xlab("position") + ylab("group difference") + guides(colour=FALSE) +
-		ylim(-2, 3.5)
+		xlab("position") + ylab("group difference") + guides(colour=FALSE)
+		#ylim(-2, 3.5)
 	,
 	height = 2, width = 6,
 	file = "estimated-diff.pdf"
