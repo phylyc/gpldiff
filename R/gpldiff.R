@@ -320,11 +320,21 @@ fit_params <- function(data, params, hparams, tol=1e-5, max.iter=10, predict=TRU
 	model
 }
 
+# @return updated momentum
+momentum <- function(v, g, learn.rate = 0.1, beta=0.9) {
+	if (is.na(v)) {
+		learn.rate * g
+	} else {
+		beta * v + (1 - beta) * learn.rate * g
+	}
+}
+
 # Adaptive Moment Estimation
 # Computes the first and second order moments of the momentum
 # @param momentum   previous value of the moments
 # @param g  gradient
 # @param t  time step
+# @return updated momentum
 adam <- function(momentum, g, t, beta1=0.9, beta2=0.999) {
 	c(
 		(beta1 * momentum[1] + (1 - beta1) * g) / (1 - beta1^t),
@@ -392,19 +402,21 @@ adam_step <- function(momentum, learn.rate = 0.1, eps = 1e-8) {
 #' plot(fit, data);
 #' }
 #'
-gpldiff <- function(data, params=NULL, hparams=NULL, adapt=FALSE, learn.rate=0.2, tol=1e-1, tol2=1e-1, max.iter=10, max.iter2=10, predict=TRUE, verbose=FALSE, ...) {
+gpldiff <- function(data, params=NULL, hparams=NULL, adapt=FALSE, learn.rate=0.1, tol=1e-1, tol2=1e-1, max.iter=10, max.iter2=10, predict=TRUE, verbose=FALSE, ...) {
 	if (is.null(hparams)) {
 		hparams <- default_hparams();
 	}
 
 	niters <- 0;
 	if (adapt) {
-		# find hyperparameter values lambada and nu that maximize the log marginal likelihood
+		# find hyperparameter values lambda and nu that maximize the log marginal likelihood
 		# NB other hyperparameters are fixed
 		delta <- Inf;
 		old.ll <- -Inf;
-		m.lambda2 <- c(0.0, 0.0);
-		m.nu2 <- c(0.0, 0.0);
+		#m.lambda2 <- c(0.0, 0.0);
+		#m.nu2 <- c(0.0, 0.0);
+		#m.lambda2 <- NA;
+		#m.nu2 <- NA;
 		while (delta > tol2) {
 			niters <- niters + 1;
 
@@ -412,15 +424,39 @@ gpldiff <- function(data, params=NULL, hparams=NULL, adapt=FALSE, learn.rate=0.2
 
 				res <- fit_params(data, params, hparams, tol=tol, max.iter=max.iter, predict=FALSE);
 
-				hparams$lambda2 <- hparams$lambda2 + learn.rate * res$gradient$lambda2;
-				hparams$nu2 <- hparams$nu2 + learn.rate * res$gradient$nu2;
+				#message("Grad ", res$gradient$lambda2, " ", res$gradient$nu2)
 
-				# ADAM did not seem to work well: it keeps getting stuck
+				#hparams$lambda2 <- hparams$lambda2 + learn.rate * res$gradient$lambda2;
+				#hparams$nu2 <- hparams$nu2 + learn.rate * res$gradient$nu2;
 
-				#m.lambda2 <- adam(m.lambda2, res$gradient$lambda2, niters);
-				#m.nu2 <- adam(m.nu2, res$gradient$nu2, niters);
-				#hparams$lambda2 <- hparams$lambda2 + adam_step(m.lambda2, learn.rate=learn.rate);
-				#hparams$nu2 <- hparams$nu2 + adam_step(m.nu2, learn.rate=learn.rate);
+				#m.lambda2 <- momentum(m.lambda2, res$gradient$lambda2);
+				#m.nu2 <- momentum(m.nu2, res$gradient$nu2);
+
+				#hparams$lambda2 <- hparams$lambda2 + m.lambda2;
+				#hparams$nu2 <- hparams$nu2 + m.nu2;
+
+				#message("Params ", hparams$lambda2, " ", hparams$nu2)
+
+				# ADAM did not seem to work well: it keeps getting stuck due to
+				# second moment becoming very large
+
+#				m.lambda2 <- adam(m.lambda2, -res$gradient$lambda2, niters);
+#				m.nu2 <- adam(m.nu2, -res$gradient$nu2, niters);
+#				message("M1 ", m.lambda2[1], " ", m.nu2[1]);
+#				message("M2 ", m.lambda2[2], " ", m.nu2[2]);
+#				step.lambda2 <- adam_step(m.lambda2, learn.rate=learn.rate);
+#				step.nu2 <- adam_step(m.nu2, learn.rate=learn.rate);
+#				message("Step ", step.lambda2, " ", step.nu2)
+#				hparams$lambda2 <- hparams$lambda2 - step.lambda2;
+#				hparams$nu2 <- hparams$nu2 - step.nu2;
+
+				# enforce bounds
+				if (hparams$lambda2 <= 0) {
+					hparams$lambda2 <- 1e-3;
+				}
+				if (hparams$nu2 <= 0) {
+					hparams$nu2 <- 1e-3;
+				}
 
 				ll <- res$evidence;
 			} else {
@@ -471,6 +507,10 @@ gpldiff <- function(data, params=NULL, hparams=NULL, adapt=FALSE, learn.rate=0.2
 
 	model <- fit_params(data, params, hparams, tol=tol, max.iter=max.iter, predict=predict, ...);
 	model$niters <- c(model$niters, niters);
+
+	if (verbose) {
+		message("log evidence = ", model$evidence);
+	}
 
 	model
 }
