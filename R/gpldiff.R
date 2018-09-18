@@ -415,12 +415,12 @@ gpldiff <- function(data, params=NULL, hparams=NULL, adapt=FALSE, learn.rate=0.2
 				hparams$lambda2 <- hparams$lambda2 + learn.rate * res$gradient$lambda2;
 				hparams$nu2 <- hparams$nu2 + learn.rate * res$gradient$nu2;
 
-				# ADAM did not seem to work well
+				# ADAM did not seem to work well: it keeps getting stuck
 
 				#m.lambda2 <- adam(m.lambda2, res$gradient$lambda2, niters);
 				#m.nu2 <- adam(m.nu2, res$gradient$nu2, niters);
-				#hparams$lambda2 <- hparams$lambda2 + adam_step(m.lambda2, learn.rate=1);
-				#hparams$nu2 <- hparams$nu2 + adam_step(m.nu2, learn.rate=1);
+				#hparams$lambda2 <- hparams$lambda2 + adam_step(m.lambda2, learn.rate=learn.rate);
+				#hparams$nu2 <- hparams$nu2 + adam_step(m.nu2, learn.rate=learn.rate);
 
 				ll <- res$evidence;
 			} else {
