@@ -102,14 +102,16 @@ str(fit)
 
 # Optimizing hyperparameters now works!
 load_all("../R");
-fit.adapt <- gpldiff(data, adapt=TRUE, tol2=1e-2, max.iter2=50, learn.rate=0.01, verbose=TRUE);
-fit.adapt2 <- gpldiff(data, adapt=TRUE, tol2=1e-2, max.iter2=20, learn.rate=0, verbose=TRUE);
+fit.adapt <- gpldiff(data, adapt="GD", tol2=1e-2, max.iter2=50, learn.rate=0.01, verbose=TRUE);
+fit.adapt2 <- gpldiff(data, adapt="Brent", tol2=1e-2, max.iter2=20, learn.rate=0, verbose=TRUE);
+fit.adapt3 <- gpldiff(data, adapt="L-BFGS-B", tol2=1e-2, max.iter2=20, learn.rate=0, verbose=TRUE);
 
 str(fit.adapt)
 str(fit.adapt2)
 
 fit.adapt$evidence
 fit.adapt2$evidence
+fit.adapt3$evidence
 
 fit <- fit.adapt;
 fit <- fit.adapt2;
