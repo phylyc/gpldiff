@@ -255,7 +255,7 @@ default_hparams <- function() {
 }
 
 # Fit model parameters with hyperparameters fixed
-fit_params <- function(data, params, hparams, tol=1e-5, max.iter=10, predict=TRUE, plot=FALSE, fixed=NULL) {
+fit_params <- function(data, params, hparams, tol=1e-5, max.iter=10, predict=TRUE, plot=FALSE, fixed=NULL, hgradient=TRUE) {
 
 	if (is.null(hparams)) {
 		hparams <- default_hparams();
@@ -312,16 +312,18 @@ fit_params <- function(data, params, hparams, tol=1e-5, max.iter=10, predict=TRU
 		);
 	}
 
-	res <- ll_g_hparams(data, params, hparams, K, hgradient=TRUE);
+	res <- ll_g_hparams(data, params, hparams, K, hgradient=hgradient);
 	model$evidence <- res$evidence;
-	model$gradient <- res$gradient;
+	if (hgradient) {
+		model$gradient <- res$gradient;
+	}
 	class(model) <- "gpldiff";
 
 	model
 }
 
 # @return updated momentum
-momentum <- function(v, g, learn.rate = 0.1, beta=0.9) {
+momentum <- function(v, g, learn.rate = 0.01, beta=0.9) {
 	if (is.na(v)) {
 		learn.rate * g
 	} else {
@@ -343,7 +345,7 @@ adam <- function(momentum, g, t, beta1=0.9, beta2=0.999) {
 }
 
 # Calculate update value using ADAM learning rate
-adam_step <- function(momentum, learn.rate = 0.1, eps = 1e-8) {
+adam_step <- function(momentum, learn.rate = 0.01, eps = 1e-8) {
 	learn.rate * momentum[1] / (sqrt(momentum[2]) + eps)
 }
 
@@ -393,8 +395,8 @@ adam_step <- function(momentum, learn.rate = 0.1, eps = 1e-8) {
 #' hparams <- list(
 #' 	nu2 = 1.13^2,
 #' 	lambda2 = 1.41^2,
-#' 	alpha = 2,
-#' 	beta = 1,
+#' 	alpha = 0.1,
+#' 	beta = 0.1,
 #' 	tau2 = 1
 #' )
 #' params <- NULL
@@ -402,70 +404,136 @@ adam_step <- function(momentum, learn.rate = 0.1, eps = 1e-8) {
 #' plot(fit, data);
 #' }
 #'
-gpldiff <- function(data, params=NULL, hparams=NULL, adapt=FALSE, learn.rate=0.1, tol=1e-1, tol2=1e-1, max.iter=10, max.iter2=10, predict=TRUE, verbose=FALSE, ...) {
+gpldiff <- function(data, params=NULL, hparams=NULL, adapt=c("none", "GD", "GDM", "ADAM", "L-BFGS-B", "CG", "Brent"), learn.rate=0.01, tol=1e-1, tol2=1e-1, max.iter=10, max.iter2=10, predict=TRUE, verbose=FALSE, ...) {
 	if (is.null(hparams)) {
 		hparams <- default_hparams();
 	}
 
+	adapt <- match.arg(adapt);
+
 	niters <- 0;
-	if (adapt) {
+	if (adapt != "none") {
 		# find hyperparameter values lambda and nu that maximize the log marginal likelihood
 		# NB other hyperparameters are fixed
 		delta <- Inf;
 		old.ll <- -Inf;
-		#m.lambda2 <- c(0.0, 0.0);
-		#m.nu2 <- c(0.0, 0.0);
-		#m.lambda2 <- NA;
-		#m.nu2 <- NA;
+
+		if (adapt == "GDM") {
+			m.lambda2 <- NA;
+			m.nu2 <- NA;
+		} else if (adapt == "ADAM") {
+			m.lambda2 <- c(0.0, 0.0);
+			m.nu2 <- c(0.0, 0.0);
+		}
+
 		while (delta > tol2) {
 			niters <- niters + 1;
+			if (verbose) {
+				message("iteration ", niters)
+			}
 
-			if (learn.rate > 0) {
+			if (adapt == "GD") {
 
-				res <- fit_params(data, params, hparams, tol=tol, max.iter=max.iter, predict=FALSE);
+				# Basic gradient descent
+				# learning rate needs tuning!
+				# Quits early if log likelihood decreases
+				# TODO figure out which parameter is overshooting and decrease
+				#      learning rate or step size for that parameter
 
-				#message("Grad ", res$gradient$lambda2, " ", res$gradient$nu2)
+				res <- fit_params(data, params, hparams, tol=tol, max.iter=max.iter, predict=FALSE,
+													hgradient=TRUE);
+				ll <- res$evidence;
 
-				#hparams$lambda2 <- hparams$lambda2 + learn.rate * res$gradient$lambda2;
-				#hparams$nu2 <- hparams$nu2 + learn.rate * res$gradient$nu2;
+				if (verbose) {
+					message("hparams ", hparams$lambda2, " ", hparams$nu2)
+					message("hgrads ", res$gradient$lambda2, " ", res$gradient$nu2)
+				}
 
-				#m.lambda2 <- momentum(m.lambda2, res$gradient$lambda2);
-				#m.nu2 <- momentum(m.nu2, res$gradient$nu2);
+				if (ll < old.ll) {
+					# ll has gotten worse: backtrack and stop
+					if (verbose) {
+						message("log evidence = ", ll, " ... Backtrack and stop")
+					}
+					hparams <- hparams.old;
+					niters <- niters - 1;
+					break;
+				} else {
+					hparams.old <- hparams;
+					# continue updating hyperparameters
+					hparams$lambda2 <- hparams$lambda2 + learn.rate * res$gradient$lambda2;
+					hparams$nu2 <- hparams$nu2 + learn.rate * res$gradient$nu2;
+				}
 
-				#hparams$lambda2 <- hparams$lambda2 + m.lambda2;
-				#hparams$nu2 <- hparams$nu2 + m.nu2;
+			} else if (adapt == "GDM") {
 
-				#message("Params ", hparams$lambda2, " ", hparams$nu2)
+				# Gradient descent with momentum update
+
+				m.lambda2 <- momentum(m.lambda2, res$gradient$lambda2);
+				m.nu2 <- momentum(m.nu2, res$gradient$nu2);
+
+				hparams$lambda2 <- hparams$lambda2 + m.lambda2;
+				hparams$nu2 <- hparams$nu2 + m.nu2;
+
+			} else if (adapt == "ADAM") {
 
 				# ADAM did not seem to work well: it keeps getting stuck due to
 				# second moment becoming very large
 
-#				m.lambda2 <- adam(m.lambda2, -res$gradient$lambda2, niters);
-#				m.nu2 <- adam(m.nu2, -res$gradient$nu2, niters);
-#				message("M1 ", m.lambda2[1], " ", m.nu2[1]);
-#				message("M2 ", m.lambda2[2], " ", m.nu2[2]);
-#				step.lambda2 <- adam_step(m.lambda2, learn.rate=learn.rate);
-#				step.nu2 <- adam_step(m.nu2, learn.rate=learn.rate);
-#				message("Step ", step.lambda2, " ", step.nu2)
-#				hparams$lambda2 <- hparams$lambda2 - step.lambda2;
-#				hparams$nu2 <- hparams$nu2 - step.nu2;
+				m.lambda2 <- adam(m.lambda2, -res$gradient$lambda2, niters);
+				m.nu2 <- adam(m.nu2, -res$gradient$nu2, niters);
+				step.lambda2 <- adam_step(m.lambda2, learn.rate=learn.rate);
+				step.nu2 <- adam_step(m.nu2, learn.rate=learn.rate);
+				hparams$lambda2 <- hparams$lambda2 - step.lambda2;
+				hparams$nu2 <- hparams$nu2 - step.nu2;
 
-				# enforce bounds
-				if (hparams$lambda2 <= 0) {
-					hparams$lambda2 <- 1e-3;
-				}
-				if (hparams$nu2 <= 0) {
-					hparams$nu2 <- 1e-3;
+				if (verbose) {
+					message("ADAM M1 ", m.lambda2[1], " ", m.nu2[1]);
+					message("ADAM M2 ", m.lambda2[2], " ", m.nu2[2]);
+					message("ADAM Step ", step.lambda2, " ", step.nu2)
 				}
 
-				ll <- res$evidence;
-			} else {
+			} else if (adapt == "L-BFGS-B") {
 
-				# NB Ideally, we would use `optim` and supply the gradient 
-				# and use the BFGS or CG method...
-				# Howeer, `optim` requires the objective function and gradient
+				# `optim` requires the objective function and gradient
 				# function separately, this requires two expensive calls per
 				# iteration within `optim`!
+
+				# Due to lack of parameter constraint, CG and BFGS can often
+				# run into numeric problems near -Inf and Inf,
+				# causing the B matrix to be singular
+
+				# With contraints added, optimize will force the
+				# use of L-BFGS-B
+
+				opt <- optim(
+					c(
+						lnu = log(sqrt(hparams$nu2)),
+						llambda = log(sqrt(hparams$lambda2))
+					),
+					fn = function(par) {
+						hparams$nu2 <- exp(par[1])^2;
+						hparams$lambda2 <- exp(par[2])^2;
+						message("hparams ", hparams$lambda2, " ", hparams$nu2)
+						fit_params(data, params, hparams, tol=tol, max.iter=max.iter,
+											 predict=FALSE)$evidence
+					},
+					gr = function(par) {
+						hparams$nu2 <- exp(par[1])^2;
+						hparams$lambda2 <- exp(par[2])^2;
+						unlist(fit_params(data, params, hparams, tol=tol, max.iter=max.iter,
+											 predict=FALSE, hgradient=TRUE)$gradient)
+					},
+					lower = -10, upper = 10,
+					method = "L-BFGS-B",
+					control = list(abtol=tol, retol=tol, pgtol=tol, fnscale=-1, maxit=max.iter)
+				);
+
+				hparams$nu2 <- exp(opt$par[1])^2;
+				hparams$lambda2 <- exp(opt$par[2])^2;
+				ll <- opt$value;
+
+			} else {
+
 
 				opt.lambda <- optimize(
 					function(lambda) {
@@ -496,6 +564,14 @@ gpldiff <- function(data, params=NULL, hparams=NULL, adapt=FALSE, learn.rate=0.1
 
 			if (verbose) {
 				message("log evidence = ", ll);
+			}
+
+			# enforce bounds
+			if (hparams$lambda2 <= 0) {
+				hparams$lambda2 <- 1e-3;
+			}
+			if (hparams$nu2 <= 0) {
+				hparams$nu2 <- 1e-3;
 			}
 
 			delta <- ll - old.ll;
