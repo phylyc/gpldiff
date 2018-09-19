@@ -10,7 +10,7 @@ rcurve <- function(x, nknots=12) {
 	z[nonzeros] <- runif(length(nonzeros));
 	w <- rbeta(N, 1, 10);
 	w[nonzeros] <- 1;
-	s <- smooth.spline(x, z, w, lambda=1e-4, nknots=nknots, keep.data=FALSE);
+	s <- smooth.spline(x, z, w, control.spar=list(lambda=1e-4), nknots=nknots, keep.data=FALSE);
 	s$y
 }
 
@@ -107,7 +107,7 @@ fit.adapt <- gpldiff(data, adapt="GD", tol2=1e-2, max.iter2=50, learn.rate=0.2, 
 #fit.adapt3 <- gpldiff(data, adapt="L-BFGS-B", tol2=1e-2, max.iter2=20, learn.rate=0, verbose=TRUE);
 
 str(fit.adapt)
-str(fit.adapt2)
+#str(fit.adapt2)
 
 fit$evidence
 fit.adapt$evidence
