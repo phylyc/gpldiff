@@ -4,6 +4,25 @@ library(ggplot2)
 library(devtools)
 load_all("../R");
 
+# root mean square error
+rmse <- function(x, y) {
+	sqrt(mean((x - y)^2))
+}
+
+# Calculate coverage probability
+#
+# @param x  observed data
+# @param m  mean estimate
+# @param s  standard error of the mean
+# @param alpha  significance level (expected coverage is `1 - alpha`)
+coverage <- function(x, m, s, alpha=0.05) {
+	lower <- qnorm(alpha/2, m, s);
+	upper <- qnorm(1 - alpha/2, m, s);
+
+	mean(lower <= x & x <= upper)
+}
+
+# random regeneration of a spline curve
 rcurve <- function(x, nknots=12) {
 	z <- rep(0, N);
 	nonzeros <- round(runif(rpois(1, 10), 1, N));
@@ -82,13 +101,15 @@ hparams <- list(
 # initial guess
 params <- list(
 	mu = 0,
-	sigma2 = 1,
+	#sigma2 = 1,
+	sigma2 = sigma^2,
 	f = rep(0, data$J)
 );
 
 fixed <- list(
 	mu = FALSE,
-	sigma2 = FALSE,
+	#sigma2 = FALSE,
+	sigma2 = TRUE,
 	f = FALSE
 );
 
@@ -101,10 +122,26 @@ fit <- gpldiff(data, params=params, hparams=hparams, fixed=fixed);
 str(fit)
 
 # Optimizing hyperparameters now works!
-load_all("../R");
 fit.adapt <- gpldiff(data, adapt="GD", tol2=1e-2, max.iter2=50, learn.rate=0.2, verbose=TRUE);
 #fit.adapt2 <- gpldiff(data, adapt="Brent", tol2=1e-2, max.iter2=20, learn.rate=0, verbose=TRUE);
 #fit.adapt3 <- gpldiff(data, adapt="L-BFGS-B", tol2=1e-2, max.iter2=20, learn.rate=0, verbose=TRUE);
+
+cor(f, fit$params$f)
+rmse(f, fit$params$f)
+
+coverage(f, fit$params$f, sqrt(fit$predict$fvar), alpha=0.05)
+coverage(f, fit$params$f, sqrt(fit$predict$fvar), alpha=0.1)
+coverage(f, fit$params$f, sqrt(fit$predict$fvar), alpha=0.25)
+coverage(f, fit$params$f, sqrt(fit$predict$fvar), alpha=0.5)
+
+cor(f, fit.adapt$params$f)
+rmse(f, fit.adapt$params$f)
+
+coverage(f, fit.adapt$params$f, sqrt(fit.adapt$predict$fvar), alpha=0.05)
+coverage(f, fit.adapt$params$f, sqrt(fit.adapt$predict$fvar), alpha=0.1)
+coverage(f, fit.adapt$params$f, sqrt(fit.adapt$predict$fvar), alpha=0.25)
+coverage(f, fit.adapt$params$f, sqrt(fit.adapt$predict$fvar), alpha=0.5)
+
 
 str(fit.adapt)
 #str(fit.adapt2)
@@ -117,9 +154,11 @@ fit.adapt$evidence
 fit <- fit.adapt;
 #fit <- fit.adapt2;
 
-plot(fit, data);
+
 
 # plot data
+
+plot(fit, data);
 
 qdraw(
 	{
