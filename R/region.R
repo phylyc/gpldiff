@@ -1,5 +1,5 @@
 #' @param model  \code{gpldiff} model
-find_sig_regions <- function(model, data, lodds.cut=2, max.gap=2, min.obs=2) {
+find_sig_regions <- function(model, data, lodds.cut=2, max.gap=5, min.obs=2) {
 	# find candidate regions
 
 	prob <- summary(model);
@@ -9,18 +9,25 @@ find_sig_regions <- function(model, data, lodds.cut=2, max.gap=2, min.obs=2) {
 	if (length(idx) == 0) return(NULL);
 
 	# mark contiguous start and ends with 1 and -1 respectively
-	boundaries <- c(1, diff(diff(idx) <= max.gap), -1);
+	# gap size between two contiguous regions is j - i - 1
+	# where i is the end index of the first region
+	#       j is the start index of the second region
+	# therefore, j - i - 1 <= max.gap
+	#            j - i <= max.gap + 1
+	# note the start (1) and end (-1) markers inserted at both ends
+	boundaries <- c(1, diff(diff(idx) <= max.gap + 1), -1);
 
 	start_idx <- idx[which(boundaries == 1)];
-	end_idx = idx[which(boundaries == -1)];
+	end_idx <- idx[which(boundaries == -1)];
 
-	if (length(start_idx) > length(end_idx)) {
-		# first region is a singleton
+	if (length(start_idx) >= 2 && end_idx[1] > start_idx[2]) {
+		# second region starts before the first segment ends
+		# first region is a singleton and not marked by an end marker
 		start_idx <- start_idx[-1];
 	}
 
-	if (length(end_idx) > length(start_idx)) {
-		# last region is a singleton
+	if (length(end_idx) >= 2 && start_idx[length(start_idx)] < end_idx[length(end_idx)-1]) {
+		# last region is a singleton and not marked by a start marker
 		end_idx <- end_idx[-length(end_idx)];
 	}
 
@@ -89,7 +96,7 @@ region_posterior <- function(ridx, data, model) {
 
 # check whether two regions overlap
 overlap <- function(s1, e1, s2, e2) {
-	# use bit or here to allow all arguments to be vectors
+	# use bitwise OR to allow all arguments to be vectors
 	!( e1 < s2 | e2 < s1 )
 }
 
