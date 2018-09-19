@@ -88,21 +88,21 @@ compare_gistics <- function(case, control, params=NULL, hparams=NULL, ...) {
 #' @param fits  a list of \code{gpldiff} objects
 #'              (returned from \code{compare_gistics})
 #' @return list of data.frame
-summary.gistic_gpldiffs <- function(fits) {
+summary.gistic_gpldiffs <- function(fits, direction=1) {
 	regions.all <- lapply(
 		fits,
 		function(fit) {
-			find_sig_regions(fit$model, fit$data)
+			find_sig_regions(fit$model, fit$data, direction=direction)
 		}
 	);
 
 	regions.amp <- regions.all[grep("Amp", names(regions.all))];
 	names(regions.amp) <- sub("Amp.", "", names(regions.amp));
-	regions.amp <- process_regions(combine_regions(regions.amp));
+	regions.amp <- process_regions(combine_regions(regions.amp), direction=direction);
 
 	regions.del <- regions.all[grep("Del", names(regions.all))];
 	names(regions.del) <- sub("Del.", "", names(regions.del));
-	regions.del <- process_regions(combine_regions(regions.del));
+	regions.del <- process_regions(combine_regions(regions.del), direction=direction);
 
 	rbind(
 		data.frame(
