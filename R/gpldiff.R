@@ -682,7 +682,7 @@ plot.gpldiff <- function(model, data, center=FALSE) {
 #'
 summary.gpldiff <- function(object, log.odds = FALSE, ...) {
 	if (is.null(object$predict)) {
-		stop("gpldiff object must be created with `predict=TRUE`");
+		stop("`gpldiff` object must have been created by calling `gpldiff()` with `predict=TRUE`");
 	}
 
 	f <- object$params$f;
