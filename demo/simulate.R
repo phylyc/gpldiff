@@ -117,6 +117,8 @@ fit.adapt$evidence
 fit <- fit.adapt;
 #fit <- fit.adapt2;
 
+plot(fit, data);
+
 # plot data
 
 qdraw(
