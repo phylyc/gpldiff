@@ -50,7 +50,7 @@ prepare_gistics <- function(case, control) {
 #' @param hparams  hyperparameter values to \code{gpldiff()}
 #' @param ...      other paramsters to \code{gpldiff()}
 #' @return a list of \code{gpldiff} objects
-compare_gistics <- function(case, control, params=NULL, hparams=NULL, adapt=FALSE, ...) {
+compare_gistics <- function(case, control, params=NULL, hparams=NULL, adapt="none", ...) {
 
 	if (is.character(case)) {
 		case <- read_gistic(case);
