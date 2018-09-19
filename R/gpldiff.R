@@ -650,27 +650,32 @@ plot.gpldiff <- function(model, data, center=FALSE) {
 
 	# plot observed data
 	g <- data$g[idx] <= 0;
-	plot(NA, xlim=range(data$x), ylim=range(data$y), xlab="x", ylab="observed responses");
+	plot(NA, xlim=range(data$x), ylim=range(data$y), xlab="", ylab="observed responses");
 	lines(data$x[idx][g], data$y[idx][g], col="grey", pch=20, type="b", lwd=2);
 	lines(data$x[idx][!g], data$y[idx][!g], col="orange", pch=20, type="b", lwd=2);
+	legend("topright", col=c("orange", "grey"), lwd=2, legend=c("case", "control"), bty="n");
 
 	# plot latent difference f
-	plot(NA, xlim=range(data$x), ylim=ylim, xlab="x", ylab="latent difference f", las=1);
+	plot(NA, xlim=range(data$x), ylim=ylim, xlab="", ylab="latent difference f", las=1);
 	if (!is.null(data$f)) {
-		points(data$x, data$f);
+		points(data$x, data$f, pch=20, col="grey30");
+		legend("bottomright", col=c("grey30", "lightblue3"), pch=20, legend=c("truth", "estimated"), bty="n");
 	}
 	abline(h = 0, col="grey30", lty=2);
-	lines(data$x[idx], model$params$f[idx], col="grey30", lwd=2, pch=20, type="b");
+	points(data$x[idx], model$params$f[idx], col="lightblue3", pch=20, lwd=2);
 	if (!is.null(cint)) {
-		lines(data$x[idx], cint[idx,1], col="grey");
-		lines(data$x[idx], cint[idx,2], col="grey");
+		lines(data$x[idx], cint[idx,1], col="grey", lwd=2);
+		lines(data$x[idx], cint[idx,2], col="grey", lwd=2);
 	}
 
 	# plot log posterior odds
 	lodds <- summary(model, log.odds=TRUE);
-	plot(data$x[idx], lodds[idx],
-		xlab="x", ylab="log posterior odds", col="red", type="b", pch=20, lwd=2, ylim=c(0, max(lodds[is.finite(lodds)])*1.1));
+	plot(NA, xlim=range(data$x[idx]), ylim=range(lodds[idx]),
+		xlab="x", ylab="log posterior odds");
 	abline(h = 0, col="grey30", lty=2);
+	abline(h = -2, col="grey30");
+	abline(h = 2, col="grey30");
+	lines(data$x[idx], lodds[idx], col="red", pch=20, lwd=2);
 }
 
 #' Summarize GPLDIFF model

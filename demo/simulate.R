@@ -1,4 +1,7 @@
-library(devtools);
+library(io)
+library(ggplot2)
+
+library(devtools)
 load_all("../R");
 
 rcurve <- function(x, nknots=12) {
@@ -79,11 +82,8 @@ hparams <- list(
 # initial guess
 params <- list(
 	mu = 0,
-	#mu = mu,
-	sigma2 = 2,
-	#sigma2 = sigma^2,
+	sigma2 = 1,
 	f = rep(0, data$J)
-	#f = f
 );
 
 fixed <- list(
@@ -103,43 +103,48 @@ str(fit)
 # Optimizing hyperparameters now works!
 load_all("../R");
 fit.adapt <- gpldiff(data, adapt="GD", tol2=1e-2, max.iter2=50, learn.rate=0.2, verbose=TRUE);
-fit.adapt2 <- gpldiff(data, adapt="Brent", tol2=1e-2, max.iter2=20, learn.rate=0, verbose=TRUE);
-fit.adapt3 <- gpldiff(data, adapt="L-BFGS-B", tol2=1e-2, max.iter2=20, learn.rate=0, verbose=TRUE);
+#fit.adapt2 <- gpldiff(data, adapt="Brent", tol2=1e-2, max.iter2=20, learn.rate=0, verbose=TRUE);
+#fit.adapt3 <- gpldiff(data, adapt="L-BFGS-B", tol2=1e-2, max.iter2=20, learn.rate=0, verbose=TRUE);
 
 str(fit.adapt)
 str(fit.adapt2)
 
 fit$evidence
 fit.adapt$evidence
-fit.adapt2$evidence
-fit.adapt3$evidence
+#fit.adapt2$evidence
+#fit.adapt3$evidence
 
 fit <- fit.adapt;
-fit <- fit.adapt2;
+#fit <- fit.adapt2;
+
+plot(fit, data);
 
 # plot data
 
-par(mfrow=c(4, 1));
+qdraw(
+	{
+		par(mfrow=c(4, 1));
 
-plot(c(x, x), c(m_a, m_b), xlab="x", ylab="y", type="n", main = "Truth data");
-lines(x, m_a, col=3);
-lines(x, m_b, col=4);
+		plot(c(x, x), c(m_a, m_b), xlab="x", ylab="y", type="n", main = "Truth data");
+		lines(x, m_a, col=3);
+		lines(x, m_b, col=4);
 
-plot(c(x, x), c(y_a, y_b), xlab="x", ylab="y", type="n", main = "data with noise");
-points(x, y_a, col=3);
-points(x, y_b, col=4);
+		plot(c(x, x), c(y_a, y_b), xlab="x", ylab="y", type="n", main = "data with noise");
+		points(x, y_a, col=3);
+		points(x, y_b, col=4);
 
-plot(x, y, col=as.numeric(g > 0)+3, main = "Observed data with noise and missingness");
+		plot(x, y, col=as.numeric(g > 0)+3, main = "Observed data with noise and missingness");
 
-plot(x, f, main = "difference in mean", type="l", ylim=c(-0.6, 0.6));
-fsd <- sqrt(fit$predict$fvar);
-points(x, fit$params$f, main = "E[f]", col="red")
-lines(x, fit$params$f - 2 * fsd, main = "E[f]", col="red")
-lines(x, fit$params$f + 2 * fsd, main = "E[f]", col="red")
+		plot(x, f, main = "difference in mean", type="l", ylim=c(-0.6, 0.6));
+		fsd <- sqrt(fit$predict$fvar);
+		points(x, fit$params$f, main = "E[f]", col="red")
+		lines(x, fit$params$f - 2 * fsd, main = "E[f]", col="red")
+		lines(x, fit$params$f + 2 * fsd, main = "E[f]", col="red")
+	},
+	height = 10,
+	file = "overview.pdf"
+);
 
-
-library(ggplot2);
-library(io);
 
 gcols <- c(control="royalblue", case="orangered");
 
@@ -151,12 +156,15 @@ truth <- data.frame(
 	)
 );
 
+ymin <- -0.1;
+ymax <- 0.5;
+
 qdraw(
 	ggplot(truth, aes(x, y, colour=group)) + theme_bw() +
 		scale_colour_manual(values=gcols) +
 		geom_line(lwd=1) +
 		xlab("position") + ylab("response") +
-		ylim(-2, 2)
+		ylim(ymin, ymax)
 	,
 	height = 2, width = 6,
 	file = "truth-data.pdf"
@@ -168,7 +176,7 @@ qdraw(
 		geom_point(alpha=0.5) +
 		geom_spoke(aes(y=-1.8, colour=group), angle=pi/2, radius=0.2) +
 		xlab("position") + ylab("observed response") +
-		ylim(-2, 2)
+		ylim(ymin, ymax)
 	,
 	height = 2, width = 6,
 	file = "observed-data.pdf"
@@ -185,13 +193,16 @@ d <- data.frame(
 
 cols <- c(truth="grey20", estimate="firebrick2");
 
+ymin <- -0.6;
+ymax <- 0.6;
+
 qdraw(
 	ggplot(d, aes(x = x)) + theme_bw() +
 		geom_hline(aes(yintercept=0), linetype="dashed", colour="grey30") +
 		scale_colour_manual(name="difference",values=cols) +
 		geom_line(aes(y=f, colour="truth"), lwd=1) +
-		xlab("position") + ylab("group difference") + guides(colour=FALSE)
-		#ylim(-2, 3.5)
+		xlab("position") + ylab("group difference") + guides(colour=FALSE) +
+		ylim(ymin, ymax)
 	,
 	height = 2, width = 6,
 	file = "truth-diff.pdf"
@@ -217,9 +228,9 @@ qdraw(
 		geom_line(aes(y=f, colour="truth"), lwd=1) +
 		geom_line(aes(y=f_hat, colour="estimate"), lwd=1) +
 		geom_ribbon(aes(ymin = f_hat_min, ymax = f_hat_max), fill=cols["estimate"], alpha=0.3) +
-		geom_segment(aes(x=start, xend=end, y=3, yend=3), data=regions, lwd=2) +
-		xlab("position") + ylab("group difference") + guides(colour=FALSE)
-		#ylim(-2, 3.5)
+		geom_segment(aes(x=start, xend=end, y=0.5, yend=0.5), data=regions, lwd=2) +
+		xlab("position") + ylab("group difference") + guides(colour=FALSE) +
+		ylim(ymin, ymax)
 	,
 	height = 2, width = 6,
 	file = "estimated-diff.pdf"
