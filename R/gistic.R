@@ -50,7 +50,7 @@ prepare_gistics <- function(case, control) {
 #' @param hparams  hyperparameter values to \code{gpldiff()}
 #' @param ...      other paramsters to \code{gpldiff()}
 #' @return a list of \code{gpldiff} objects
-compare_gistics <- function(case, control, params=NULL, hparams=NULL, adapt="none", ...) {
+compare_gistics <- function(case, control, params=NULL, hparams=NULL, ...) {
 
 	if (is.character(case)) {
 		case <- read_gistic(case);
@@ -64,8 +64,8 @@ compare_gistics <- function(case, control, params=NULL, hparams=NULL, adapt="non
 		hparams <- list(
 			nu2 = 5^2,
 			lambda2 = 1^2,
-			alpha = 10,
-			beta = 1,
+			alpha = 0.1,
+			beta = 0.1,
 			tau2 = 1^2
 		);
 	}
@@ -76,7 +76,7 @@ compare_gistics <- function(case, control, params=NULL, hparams=NULL, adapt="non
 	data.sets <- mcmapply(prepare_gistics, case.split, control.split, SIMPLIFY=FALSE);
 	models <- mclapply(names(data.sets), function(i) { 
 		message("Processing ", i)
-		gpldiff(data.sets[[i]], params=params, hparams=hparams, adapt=adapt, ...)
+		gpldiff(data.sets[[i]], params=params, hparams=hparams, ...)
 	});
 
 	fits <- mapply(function(d, m) list(data = d, model = m), data.sets, models, SIMPLIFY=FALSE)
