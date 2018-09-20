@@ -1,95 +1,17 @@
 library(io)
 library(ggplot2)
 
-library(devtools)
-load_all("../R");
+lapply(list.files("../R/", "\\.R$", full.names=TRUE), source);
 
-# root mean square error
-rmse <- function(x, y) {
-	sqrt(mean((x - y)^2))
-}
+set.seed(5);
+# simulate two non-linear data series with missingness
+data <- rldiff(200);
+f <- data$f;
 
-# Calculate coverage probability
-#
-# @param x  observed data
-# @param m  mean estimate
-# @param s  standard error of the mean
-# @param alpha  significance level (expected coverage is `1 - alpha`)
-coverage <- function(x, m, s, alpha=0.05) {
-	lower <- qnorm(alpha/2, m, s);
-	upper <- qnorm(1 - alpha/2, m, s);
+# write data
+saveRDS(data, "gp-compare_sim-data.rds");
 
-	mean(lower <= x & x <= upper)
-}
-
-# random regeneration of a spline curve
-rcurve <- function(x, nknots=12) {
-	z <- rep(0, N);
-	nonzeros <- round(runif(rpois(1, 10), 1, N));
-	z[nonzeros] <- runif(length(nonzeros));
-	w <- rbeta(N, 1, 10);
-	w[nonzeros] <- 1;
-	s <- smooth.spline(x, z, w, control.spar=list(lambda=1e-4), nknots=nknots, keep.data=FALSE);
-	s$y
-}
-
-rpolynomial <- function(x, dmin=c(1, 10)) {
-	# degree of polynomial
-	d <- round(runif(1, dmin[1], dmin[2]));
-	# coefficients
-	beta <- rbeta(d, 0.5, 0.5) - 0.5;
-	X <- matrix(unlist(lapply(0:(d-1), function(n) x^n)), nrow=length(x));
-
-	list(
-		y = X %*% beta,
-		beta = beta
-	)
-}
-
-# simulate non-linear data of two groups with missingness
-
-set.seed(6);
-
-# generate data
-
-N <- 200;
-offset <- 0;
-sigma <- 0.05;
-
-x <- sort(seq(0, 10, length.out=N) + rnorm(N, sd = 0.1));
-
-m_a <- rcurve(x);
-m_b <- rcurve(x) + offset;
-
-#m_a <- sin(x);
-#m_b <- sin(x/(pi/2) - 7*pi/2) + offset;
-mu <- mean((m_b + m_a) / 2);
-
-y_a <- rnorm(N, mean = m_a, sd = sigma);
-y_b <- rnorm(N, mean = m_b, sd = sigma);
-
-g <- sample(c(-0.5, 0.5), N, replace=TRUE);
-#g <- sample(c(-1, 1), N, replace=TRUE);
-# either one group or the other is observed
-# group probabilities are equal; each group has ~50% missingness
-y <- ifelse(g > 0, y_b, y_a);
-
-# latent variable to be inferred
-f <- m_b - m_a;
-
-data <- list(
-	# inputs
-	J = N,
-	x = x,
-	y = y,
-	g = g,
-	# answers
-	f = f,
-	y_a = y_a,
-	y_b = y_b,
-	sigma = sigma
-);
-
+# hyperparameters
 hparams <- list(
 	nu2 = 1,
 	lambda2 = 2,
@@ -98,18 +20,16 @@ hparams <- list(
 	tau2 = 10
 );
 
-# initial guess
+# initial guess values of parameters
 params <- list(
 	mu = 0,
-	#sigma2 = 1,
-	sigma2 = sigma^2,
+	sigma2 = 1,
 	f = rep(0, data$J)
 );
 
 fixed <- list(
 	mu = FALSE,
-	#sigma2 = FALSE,
-	sigma2 = TRUE,
+	sigma2 = FALSE,
 	f = FALSE
 );
 
@@ -117,75 +37,60 @@ fixed <- list(
 # set to 0.1^2 = 0.01 but estimate is ~0.3
 # if sigma2 is constrained to known value, then 
 # the fit of f is much poorer
+#
+#params <- list(
+#	mu = 0,
+#	sigma2 = sigma^2,
+#	f = rep(0, data$J)
+#);
+#
+#fixed <- list(
+#	mu = FALSE,
+#	sigma2 = TRUE,
+#	f = FALSE
+#);
 
-fit <- gpldiff(data, params=params, hparams=hparams, fixed=fixed);
-str(fit)
 
-# Optimizing hyperparameters now works!
+fit.nadapt <- gpldiff(data, params=params, hparams=hparams, fixed=fixed);
+
+# Optimize hyperparameters
 fit.adapt <- gpldiff(data, adapt="GD", tol2=1e-2, max.iter2=50, learn.rate=0.2, verbose=TRUE);
 #fit.adapt2 <- gpldiff(data, adapt="Brent", tol2=1e-2, max.iter2=20, learn.rate=0, verbose=TRUE);
 #fit.adapt3 <- gpldiff(data, adapt="L-BFGS-B", tol2=1e-2, max.iter2=20, learn.rate=0, verbose=TRUE);
 
-cor(f, fit$params$f)
-rmse(f, fit$params$f)
+fit.nadapt$evidence
+fit.adapt$evidence
 
-coverage(f, fit$params$f, sqrt(fit$predict$fvar), alpha=0.05)
-coverage(f, fit$params$f, sqrt(fit$predict$fvar), alpha=0.1)
-coverage(f, fit$params$f, sqrt(fit$predict$fvar), alpha=0.25)
-coverage(f, fit$params$f, sqrt(fit$predict$fvar), alpha=0.5)
+str(fit.nadapt)
+str(fit.adapt)
 
+cor(f, fit.nadapt$params$f)
 cor(f, fit.adapt$params$f)
+
+rmse(f, fit.nadapt$params$f)
 rmse(f, fit.adapt$params$f)
 
-coverage(f, fit.adapt$params$f, sqrt(fit.adapt$predict$fvar), alpha=0.05)
-coverage(f, fit.adapt$params$f, sqrt(fit.adapt$predict$fvar), alpha=0.1)
-coverage(f, fit.adapt$params$f, sqrt(fit.adapt$predict$fvar), alpha=0.25)
-coverage(f, fit.adapt$params$f, sqrt(fit.adapt$predict$fvar), alpha=0.5)
+# plot data
+qdraw(plot(data, fit.nadapt), height=10, "data_no-adapt.pdf");
+qdraw(plot(data, fit.adapt), height=10, "data_adapt.pdf");
 
+# plot fit
+qdraw(plot(fit.nadapt, data), height=10, "fit_no-adapt.pdf");
+qdraw(plot(fit.adapt, data), height=10, "fit_adapt.pdf");
 
-str(fit.adapt)
-#str(fit.adapt2)
+cov.levels <- c(0.99, 0.95, 0.9, 0.8, 0.7, 0.6, 0.5);
+cov.nadapt <- unlist(lapply(cov.levels, function(level) coverage(fit.nadapt, f, level)));
+cov.adapt <- unlist(lapply(cov.levels, function(level) coverage(fit.adapt, f, level)));
 
-fit$evidence
-fit.adapt$evidence
-#fit.adapt2$evidence
-#fit.adapt3$evidence
+plot(cov.levels, cov.nadapt, xlim=c(0.5, 1), ylim=c(0.5, 1))
+abline(a=0, b=1)
+
+plot(cov.levels, cov.adapt, xlim=c(0.5, 1), ylim=c(0.5, 1))
+abline(a=0, b=1)
+
+# prepare data for ggplot
 
 fit <- fit.adapt;
-#fit <- fit.adapt2;
-
-
-
-# plot data
-
-plot(fit, data);
-
-qdraw(
-	{
-		par(mfrow=c(4, 1));
-
-		plot(c(x, x), c(m_a, m_b), xlab="x", ylab="y", type="n", main = "Truth data");
-		lines(x, m_a, col=3);
-		lines(x, m_b, col=4);
-
-		plot(c(x, x), c(y_a, y_b), xlab="x", ylab="y", type="n", main = "data with noise");
-		points(x, y_a, col=3);
-		points(x, y_b, col=4);
-
-		plot(x, y, col=as.numeric(g > 0)+3, main = "Observed data with noise and missingness");
-
-		plot(x, f, main = "difference in mean", type="l", ylim=c(-0.6, 0.6));
-		fsd <- sqrt(fit$predict$fvar);
-		points(x, fit$params$f, main = "E[f]", col="red")
-		lines(x, fit$params$f - 2 * fsd, main = "E[f]", col="red")
-		lines(x, fit$params$f + 2 * fsd, main = "E[f]", col="red")
-	},
-	height = 10,
-	file = "overview.pdf"
-);
-
-
-gcols <- c(control="royalblue", case="orangered");
 
 truth <- data.frame(
 	x = c(x, x), y = c(m_a, m_b),
@@ -195,8 +100,27 @@ truth <- data.frame(
 	)
 );
 
-ymin <- -0.1;
-ymax <- 0.5;
+# calculate confidence interval of f estimate
+cf <- confint(fit);
+
+d <- data.frame(
+	x = x,
+	f = f,
+	f_hat = fit$params$f,
+	f_hat_min = cf$lower,
+	f_hat_max = cf$upper
+);
+
+# identify regions where f > 0
+regions <- find_sig_regions(fit, data);
+
+
+# make prettier plots
+
+gcols <- c(control="royalblue", case="orangered");
+
+ymin <- -0.25;
+ymax <- 1.25;
 
 qdraw(
 	ggplot(truth, aes(x, y, colour=group)) + theme_bw() +
@@ -221,19 +145,10 @@ qdraw(
 	file = "observed-data.pdf"
 );
 
-z <- qnorm(1 - 0.05/2);
-d <- data.frame(
-	x = x,
-	f = f,
-	f_hat = fit$params$f,
-	f_hat_min = fit$params$f - z * sqrt(fit$predict$fvar),
-	f_hat_max = fit$params$f + z * sqrt(fit$predict$fvar)
-);
-
 cols <- c(truth="grey20", estimate="firebrick2");
 
-ymin <- -0.6;
-ymax <- 0.6;
+ymin <- -1.5;
+ymax <- 1.5;
 
 qdraw(
 	ggplot(d, aes(x = x)) + theme_bw() +
@@ -247,19 +162,6 @@ qdraw(
 	file = "truth-diff.pdf"
 );
 
-# identify regions where f > 0
-idx <- d$f_hat_min > 0;
-# mark boundaries
-b <- diff(c(0, idx));
-starts <- which(b > 0);
-ends <- which(b < 0);
-if (length(ends) < length(starts)) {
-	ends <- c(ends, length(idx));
-}
-regions <- data.frame(
-	start = d$x[starts], end = d$x[ends]
-);
-
 qdraw(
 	ggplot(d, aes(x = x)) + theme_bw() +
 		geom_hline(aes(yintercept=0), linetype="dashed", colour="grey30") +
@@ -267,15 +169,12 @@ qdraw(
 		geom_line(aes(y=f, colour="truth"), lwd=1) +
 		geom_line(aes(y=f_hat, colour="estimate"), lwd=1) +
 		geom_ribbon(aes(ymin = f_hat_min, ymax = f_hat_max), fill=cols["estimate"], alpha=0.3) +
-		geom_segment(aes(x=start, xend=end, y=0.5, yend=0.5), data=regions, lwd=2) +
+		geom_segment(aes(x=start, xend=end, y=ymax*0.9, yend=ymax*0.9, alpha=posterior), data=regions, lwd=2) +
+		guides(alpha=FALSE) +
 		xlab("position") + ylab("group difference") + guides(colour=FALSE) +
 		ylim(ymin, ymax)
 	,
 	height = 2, width = 6,
 	file = "estimated-diff.pdf"
 );
-
-# write data
-
-saveRDS(data, "gp-compare_sim-data.rds");
 

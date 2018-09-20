@@ -612,13 +612,33 @@ confint.gpldiff <- function(object, parm=NULL, level=0.95, ...) {
 	alpha <- 1 - level;
 	z <- qnorm(1 - alpha/2);
 	if (is.null(object$predict)) {
-		stop("gpldiff object must be created with `predict=TRUE`");
+		stop("`gpldiff` object must have been created by calling `gpldiff()` with `predict=TRUE`");
 	}
 	r <- z * sqrt(object$predict$fvar);
 	cint <- with(object$param,
 		data.frame(lower = f - r, upper = f + r)
 	);
 	cint
+}
+
+#' Coverage probability of a fitted GPLDIFF model on observed data
+#'
+#' @param model  \code{gpldiff} object
+#' @param data   known latent differences
+#' @param level  confidence level
+coverage.gpldiff <- function(model, data, level=0.95) {
+	if (is.null(model$predict)) {
+		stop("`gpldiff` object must have been created by calling `gpldiff()` with `predict=TRUE`");
+	}
+
+	if (is.list(data)) {
+		f <- data$f;
+	} else {
+		f <- data;
+	}
+
+	msd <- list(mean=model$params$f, sd=sqrt(model$predict$fvar));
+	coverage(msd, f, level=level)
 }
 
 mean_center <- function(x) {
@@ -653,13 +673,13 @@ plot.gpldiff <- function(model, data, center=FALSE) {
 	plot(NA, xlim=range(data$x), ylim=range(data$y), xlab="", ylab="observed responses");
 	lines(data$x[idx][g], data$y[idx][g], col="grey", pch=20, type="b", lwd=2);
 	lines(data$x[idx][!g], data$y[idx][!g], col="orange", pch=20, type="b", lwd=2);
-	legend("topright", col=c("orange", "grey"), lwd=2, legend=c("case", "control"), bty="n");
+	legend("bottomright", inset=0.01, col=c("orange", "grey"), lwd=2, legend=c("case", "control"), bty="n");
 
 	# plot latent difference f
 	plot(NA, xlim=range(data$x), ylim=ylim, xlab="", ylab="latent difference f", las=1);
 	if (!is.null(data$f)) {
 		points(data$x, data$f, pch=20, col="grey30");
-		legend("bottomright", col=c("grey30", "lightblue3"), pch=20, legend=c("truth", "estimated"), bty="n");
+		legend("bottomright", inset=0.01, col=c("grey30", "lightblue3"), pch=20, legend=c("truth", "estimated"), bty="n");
 	}
 	abline(h = 0, col="grey30", lty=2);
 	points(data$x[idx], model$params$f[idx], col="lightblue3", pch=20, lwd=2);
