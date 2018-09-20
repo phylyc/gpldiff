@@ -60,10 +60,6 @@ find_sig_regions <- function(model, data, lodds.cut=2, max.gap=5, min.obs=2, dir
 
 	# construct start and end indices of candidate regions
 	regions <- data.frame(
-		# convert position from Mbp back to bp
-		# FIXME this only makes sense for GISTIC!
-		#start = data$x[start_idx] * 1e6,
-		#end = data$x[end_idx] * 1e6,
 		start = data$x[start_idx],
 		end = data$x[end_idx],
 		start_idx = start_idx,

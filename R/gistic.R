@@ -26,7 +26,7 @@ prepare_gistics <- function(case, control) {
 	data <- list(
 		# total sample size
 		J = nrow(control) + nrow(case),
-		# convert position to Mbp
+		# convert position from bp to Mbp
 		x = c(control$position, case$position) / 1e6,
 		# group membership
 		g = c(rep(-0.5, nrow(control)), rep(0.5, nrow(case))),
@@ -92,7 +92,7 @@ summary.gistic_gpldiffs <- function(fits, direction=1) {
 	regions.all <- lapply(
 		fits,
 		function(fit) {
-			find_sig_regions(fit$model, fit$data, direction=direction)
+			find_sig_regions(fit$model, fit$data, direction=direction);
 		}
 	);
 
@@ -104,7 +104,7 @@ summary.gistic_gpldiffs <- function(fits, direction=1) {
 	names(regions.del) <- sub("Del.", "", names(regions.del));
 	regions.del <- process_regions(combine_regions(regions.del), direction=direction);
 
-	rbind(
+	process_regiosn_from_gistic(rbind(
 		data.frame(
 			type = "Amp",
 			regions.amp
@@ -113,6 +113,13 @@ summary.gistic_gpldiffs <- function(fits, direction=1) {
 			type = "Del",
 			regions.del
 		)
-	)
+	))
 }
 
+process_regions_from_gistic <- function(regions) {
+	# convert position from Mbp back to bp
+	regions$start <- regions$start * 1e6;
+	regions$end <- regions$end * 1e6;
+
+	regions
+}
