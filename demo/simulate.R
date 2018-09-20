@@ -277,5 +277,5 @@ qdraw(
 
 # write data
 
-saveRDS(data, "gp-compare_sim-data.rds");
+saveRDS(data, "gpldiff_sim-data.rds");
 
