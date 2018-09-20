@@ -666,7 +666,7 @@ plot.gpldiff <- function(model, data, center=FALSE) {
 		data$y[data$g > 0] <- mean_center(data$y[data$g > 0]);
 	}
 		
-	par(mfrow=c(3,1), mai=c(0.6, 0.7, 0.1, 0.5));	
+	par(mfrow=c(3,1), mai=c(0.6, 0.7, 0.1, 0.5));
 
 	# plot observed data
 	g <- data$g[idx] <= 0;

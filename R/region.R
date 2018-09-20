@@ -1,3 +1,12 @@
+#' Find significant regions.
+#'
+#' Identify regions where latent difference \code{f > 0} (or \code{f <= 0})
+#' using a two-step procedure: first, identify candidate regions using a
+#' liberal log odds threshold and allowance for small gaps; second,
+#' calculate posterior probability of regions (not loci), from which
+#' Bayesian false discovery rates is computed and used to control
+#' false discovery rate of the significant regions.
+#'
 #' @param model  \code{gpldiff} model
 #' @param data   data object to which \code{gpldiff} model was fitted
 #' @param lodds.cut   threshold for log odds for determining candidate regions
@@ -7,6 +16,8 @@
 #' @param min.obs     minimum number of observations required for any significant region
 #' @param direction   if \code{direction > 0}, test for \code{f > 0};
 #'                    otherwise, test for \code{f <= 0}
+#' @param process     whether to postprocess the regions (including the
+#'                    calculation of Bayesian false discovery rates)
 #' @return \code{data.frame} of significant regions described by fields:
 #' \itemize{
 #'    \item \code{start}, x value at the start of region
@@ -20,9 +31,10 @@
 #'    \item \code{posterior}, posterior probability that latent difference
 #'          \code{f > 0} (or \code{f <= 0} if \code{direction <= 0})
 #' }
-#' start, x value at start of region;
-#' end, 
-find_sig_regions <- function(model, data, lodds.cut=2, max.gap=5, min.obs=2, direction=1) {
+#' @export
+#'
+find_sig_regions <- function(model, data, lodds.cut=2, max.gap=5, min.obs=2, direction=1,
+	process=TRUE) {
 	# find candidate regions
 
 	prob <- summary(model);
@@ -108,7 +120,11 @@ find_sig_regions <- function(model, data, lodds.cut=2, max.gap=5, min.obs=2, dir
 		));
 	}
 
-	regions
+	if (process) {
+		process_regions(regions)
+	} else {
+		regions
+	}
 }
 
 # calculate the posterior probability that mean f in region > 0
@@ -130,52 +146,25 @@ overlap <- function(s1, e1, s2, e2) {
 	!( e1 < s2 | e2 < s1 )
 }
 
-# filter out regions that overlap with padded centromere regions
-filter_centromere_regions <- function(regions, padding=10e6, genome="hg19") {
-	cen_chroms <- centromeres[[genome]]$chromosome;
-	cen_starts <- centromeres[[genome]]$start - padding;
-	cen_ends <- centromeres[[genome]]$end + padding;
-
-	idx <- match(regions$chromosome, cen_chroms);
-	regions[!overlap(regions$start, regions$end, cen_starts[idx], cen_ends[idx]), ]
-}
-
-
-
-# combine regions from different chromosomes together
-combine_regions <- function(regions) {
-	combined <- do.call(rbind,
-		mapply(
-			function(d, chrom) {
-				if (!is.null(d)) {
-					data.frame(
-						chromosome = chrom,
-						d
-					)
-				} else {
-					NULL
-				}
-			},
-			regions,
-			names(regions),
-			SIMPLIFY = FALSE
-		)
-	);
-	rownames(combined) <- NULL;
-
-	combined
-}
-
-# process regions of the same type
-process_regions <- function(regions, direction=1, ...) {
+#' Postprocess significant regions
+#'
+#' Postprocess significant regions to remove problematic regions and
+#' calculate the Bayesian false discovery rates of the regions. Regions
+#' that should be considered together must be concatenated together first
+#' before calculating false discvoery rate.
+#'
+#' @param regions   \code{data.frame} of significant regions
+#' @param direction  direction of significance (value must be consistent
+#'                   with the value used in \code{find_sig_regions}.
+#' @return  \code{data.frame} of filtered regions 
+#'
+process_regions <- function(regions, direction=1) {
 	regions <- regions[order(regions$posterior, decreasing=TRUE), ];
 
-	# apply non-secific filters
-	regions.f <- filter_centromere_regions(regions, ...);
 	# filter problematic regions
 	# regions with NaN diff are usually spurious
 	if (direction > 0) {
-		# regions with negative diff are contradictory... bug or numeric instability in the code???
+		# regions with negative diff are contradictory... numeric instability in the code???
 		regions.f <- regions.f[is.finite(regions.f$diff) & regions.f$diff > 0, ]
 	} else {
 		regions.f <- regions.f[is.finite(regions.f$diff) & regions.f$diff < 0, ]
