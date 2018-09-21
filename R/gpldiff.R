@@ -404,7 +404,7 @@ adam_step <- function(momentum, learn.rate = 0.01, eps = 1e-8) {
 #' plot(fit, data);
 #' }
 #'
-gpldiff <- function(data, params=NULL, hparams=NULL, adapt=c("none", "GD", "GDM", "ADAM", "L-BFGS-B", "CG", "Brent"), learn.rate=0.2, tol=1e-1, tol2=1e-1, max.iter=10, max.iter2=10, predict=TRUE, verbose=FALSE, ...) {
+gpldiff <- function(data, params=NULL, hparams=NULL, adapt=c("none", "GD", "GDM", "ADAM", "L-BFGS-B", "Brent"), learn.rate=0.2, tol=1e-1, tol2=1e-1, max.iter=10, max.iter2=10, predict=TRUE, verbose=FALSE, ...) {
 	if (is.null(hparams)) {
 		hparams <- default_hparams();
 	}
