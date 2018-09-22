@@ -80,3 +80,15 @@ plot.ldiff_data <- function(object, fit) {
 	)
 }
 
+#' Signal to noise ratio
+#'
+#' Estimate the signal to noise ratio.
+#'
+#' @param object \code{ldiff_data} object
+#' @return \code{numeric} value
+#' @export
+#'
+snr.ldiff_data <- function(object) {
+	object$mu / object$sigma
+}
+

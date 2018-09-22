@@ -741,3 +741,15 @@ subset_gpldiff <- function(x, start, end) {
 	x.sub
 }
 
+#' Signal to noise ratio
+#'
+#' Estimate the signal to noise ratio.
+#'
+#' @param object \code{gpldiff} object
+#' @return \code{numeric} value
+#' @export
+#'
+snr.gpldiff <- function(object) {
+	object$params$mu / object$params$sigma
+}
+

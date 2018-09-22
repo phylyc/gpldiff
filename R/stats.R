@@ -54,3 +54,14 @@ bayesian_fdr <- function(v) {
 	cumsum(1 - v) / 1:length(v)
 }
 
+#' Signal to noise ratio
+#'
+#' Estimate the signal to noise ratio.
+#'
+#' @param object  \code{gpldiff} object or \code{ldiff_data} object
+#' @return \code{numeric} value
+#' @export
+#'
+snr <- function(object) {
+	UseMethod("snr", object)
+}

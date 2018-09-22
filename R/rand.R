@@ -18,7 +18,9 @@ rcurve <- function(x, m=10, alpha=0.5, beta=0.5, closed=FALSE, plot=FALSE) {
 	N <- length(x);
 	steps <- rpois((m-2), N/(m-1));
 	idx <- c(1, cumsum(steps), N);
-	idx <- idx[idx <= N];
+	valid <- idx <= N;
+	idx <- idx[valid];
+	m <- sum(valid);
 	if (closed) {
 		z <- c(0, rbeta(m-2, alpha, beta), 0);
 	} else {
@@ -27,7 +29,7 @@ rcurve <- function(x, m=10, alpha=0.5, beta=0.5, closed=FALSE, plot=FALSE) {
 	sf <- splinefun(x[idx], z, method="natural");
 
 	if (plot) {
-		plot(x, sf(x), type="l", col="red")
+		base::plot(x, sf(x), type="l", col="red")
 		points(x[idx], z)
 	}
 
