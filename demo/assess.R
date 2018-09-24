@@ -10,11 +10,54 @@ signal_to_noise2 <- function(data) {
 	sd_signal^2 / sd_noise^2
 }
 
-assess_coverage <- function(conf.levels, B, N, sigma=0.05, adapt="none", coverage.clevel=0.95, ...) {
+# NB only works for scalar parameters
+assess_bias <- function(B, N, sigma=0.05, pars=c("mu", "sigma2"), ...) {
+	names(pars) <- pars;
+	biases <- lapply(1:B,
+		function(b) {
+			data <- rldiff(N, sigma=sigma);
+			fit <- gpldiff(data, ...);
+			bias(fit$params, data, pars)
+		}
+	);
+	# collect bias estimates across rounds from the same parameter together
+	lapply(pars,
+		function(p) {
+			unlist(lapply(biases,
+				function(b) {
+					b[[p]]
+				}
+			))
+		}
+	)
+}
+
+# assess coverage probability
+# since f is the only parameter for which we approximate the posterior,
+# it is the parameter for which we can derive a coverage probability
+assess_coverage <- function(conf.levels, B, N, sigma=0.05, adapt="none", coverage.clevel=0.95, 
+	fixed=NULL, ...) {
 	coverages <- matrix(unlist(lapply(1:B,
 		function(b) {
 			data <- rldiff(N, sigma=sigma, ...);
-			fit <- gpldiff(data, adapt=adapt, ...);
+			params <- NULL;
+			if (!is.null(fixed)) {
+				params <- list(
+					mu = 0,
+					sigma2 = 1,
+					f = rep(0, data$J)
+				);
+				if (fixed$mu) {
+					params$mu <- data$mu;
+				}
+				if (fixed$sigma2) {
+					params$sigma2 <- data$sigma2;
+				}
+				if (fixed$f) {
+					params$f <- data$f;
+				}
+			}
+			fit <- gpldiff(data, params=params, adapt=adapt, fixed=fixed, ...);
 			unlist(lapply(conf.levels, function(cl) coverage(fit, data, cl)))
 		}
 	)), nrow=length(conf.levels));
@@ -64,6 +107,9 @@ qdraw(plot_coverage_profile(d.nadapt.snr5), file ="coverage_nadapt_snr-5.pdf");
 
 d.adapt.snr5 <- assess_coverage(conf.levels, B=100, N=100, sigma=0.1, adapt="GD");
 qdraw(plot_coverage_profile(d.adapt.snr5), file ="coverage_adapt_snr-5.pdf");
+
+d.adapt.snr5 <- assess_coverage(conf.levels, B=100, N=100, sigma=0.1, adapt="Brent");
+qdraw(plot_coverage_profile(d.adapt.snr5), file ="coverage_adapt_snr-5_brent.pdf");
 
 ####
 
@@ -172,4 +218,66 @@ snr(fit.adapt)
 qdraw({plot(data, fit.adapt)}, height=10, file="fit_adapt_snr-1.pdf");
 
 ####
+
+set.seed(1);
+
+fixed <- list(
+	mu = FALSE,
+	sigma2 = TRUE,
+	f = FALSE
+);
+
+d.nadapt <- assess_coverage(conf.levels, B=100, N=100, fixed=fixed);
+qdraw(plot_coverage_profile(d.nadapt), file ="coverage_nadapt_snr-10_fixed-sigma.pdf");
+
+d.adapt <- assess_coverage(conf.levels, B=100, N=100, adapt="GD", fixed=fixed);
+qdraw(plot_coverage_profile(d.adapt), file ="coverage_adapt_snr-10_fixed-sigma.pdf");
+
+####
+
+set.seed(1);
+
+fixed <- list(
+	mu = FALSE,
+	sigma2 = TRUE,
+	f = FALSE
+);
+
+d.nadapt <- assess_coverage(conf.levels, B=100, N=100, sigma=0.25, fixed=fixed);
+qdraw(plot_coverage_profile(d.nadapt), file ="coverage_nadapt_snr-2_fixed-sigma.pdf");
+
+d.adapt <- assess_coverage(conf.levels, B=100, N=100, adapt="GD", sigma=0.25, fixed=fixed);
+qdraw(plot_coverage_profile(d.adapt), file ="coverage_adapt_snr-2_fixed-sigma.pdf");
+
+####
+
+set.seed(1);
+
+fixed <- list(
+	mu = TRUE,
+	sigma2 = FALSE,
+	f = FALSE
+);
+
+d.nadapt <- assess_coverage(conf.levels, B=100, N=100, fixed=fixed);
+qdraw(plot_coverage_profile(d.nadapt), file ="coverage_nadapt_snr-10_fixed-mu.pdf");
+
+d.adapt <- assess_coverage(conf.levels, B=100, N=100, adapt="GD", fixed=fixed);
+qdraw(plot_coverage_profile(d.adapt), file ="coverage_adapt_snr-10_fixed-mu.pdf");
+
+####
+
+set.seed(1);
+
+fixed <- list(
+	mu = FALSE,
+	sigma2 = FALSE,
+	f = TRUE
+);
+
+d.nadapt <- assess_coverage(conf.levels, B=100, N=100, fixed=fixed);
+qdraw(plot_coverage_profile(d.nadapt), file ="coverage_nadapt_snr-10_fixed.pdf");
+
+d.adapt <- assess_coverage(conf.levels, B=100, N=100, adapt="GD", fixed=fixed);
+qdraw(plot_coverage_profile(d.adapt), file ="coverage_adapt_snr-10_fixed.pdf");
 

@@ -65,3 +65,20 @@ bayesian_fdr <- function(v) {
 snr <- function(object) {
 	UseMethod("snr", object)
 }
+
+bias <- function(model, data, pars=NULL) {
+	UseMethod("bias", model)	
+}
+
+bias.default <- function(model, data, pars) {
+	if (is.null(pars)) {
+		pars <- names(data);
+	}
+	names(pars) <- pars;
+	lapply(pars,
+		function(p) {
+			model[[p]] - data[[p]]
+		}
+	)
+}
+
