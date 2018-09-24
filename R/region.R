@@ -165,13 +165,13 @@ process_regions <- function(regions, direction=1) {
 	# regions with NaN diff are usually spurious
 	if (direction > 0) {
 		# regions with negative diff are contradictory... numeric instability in the code???
-		regions.f <- regions.f[is.finite(regions.f$diff) & regions.f$diff > 0, ]
+		regions.f <- regions[is.finite(regions$diff) & regions$diff > 0, ]
 	} else {
-		regions.f <- regions.f[is.finite(regions.f$diff) & regions.f$diff < 0, ]
+		regions.f <- regions[is.finite(regions$diff) & regions$diff < 0, ]
 	}
 
 	# calculate Bayesian FDR
-	regions.f$fdr <- bayesian_fdr(regions.f$posterior);
+	regions.f$fdr <- bayesian_fdr(regions$posterior);
 
 	regions.f
 }
