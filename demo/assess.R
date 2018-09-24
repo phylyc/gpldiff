@@ -1,5 +1,6 @@
 library(io)
 library(ggplot2)
+library(reshape2)
 
 lapply(list.files("../R/", "\\.R$", full.names=TRUE), source);
 
@@ -86,6 +87,11 @@ plot_coverage_profile <- function(d) {
 		xlim(0, 1.01) + ylim(0, 1.01)
 }
 
+plot_bias <- function(d) {
+	ggplot(d, aes(x=value)) + facet_grid(. ~ L1, scale="free_x") +
+		geom_histogram() + theme_bw() + xlab("bias")
+}
+
 ####
 
 
@@ -111,7 +117,7 @@ d.adapt.snr5 <- assess_coverage(conf.levels, B=100, N=100, sigma=0.1, adapt="GD"
 qdraw(plot_coverage_profile(d.adapt.snr5), file ="coverage_adapt_snr-5.pdf");
 
 d.adapt.snr5 <- assess_coverage(conf.levels, B=100, N=100, sigma=0.1, adapt="Brent");
-qdraw(plot_coverage_profile(d.adapt.snr5), file ="coverage_adapt_snr-5_brent.pdf");
+qdraw(plot_coverage_profile(d.adapt.snr5), file ="coverage_adapt-brent_snr-5.pdf");
 
 ####
 
@@ -231,4 +237,30 @@ qdraw(plot_coverage_profile(d.nadapt), file ="coverage_nadapt_snr-10_fixed.pdf")
 
 d.adapt <- assess_coverage(conf.levels, B=100, N=100, adapt="GD", fixed=fixed);
 qdraw(plot_coverage_profile(d.adapt), file ="coverage_adapt_snr-10_fixed.pdf");
+
+####
+
+set.seed(1);
+
+b.nadapt <- assess_bias(B=100, N=100);
+qdraw(plot_bias(melt(b.nadapt)), width=10, file = "bias_nadapt_snr-10.pdf");
+
+b.adapt <- assess_bias(B=100, N=100, adapt="GD");
+qdraw(plot_bias(melt(b.adapt)), width=10, file = "bias_adapt_snr-10.pdf");
+
+b.adapt.brent <- assess_bias(B=100, N=100, adapt="Brent");
+qdraw(plot_bias(melt(b.adapt.brent)), width=10, file = "bias_adapt-brent_snr-10.pdf");
+
+####
+
+set.seed(1);
+
+b.nadapt <- assess_bias(B=100, N=100, sigma=0.1);
+qdraw(plot_bias(melt(b.nadapt)), width=10, file = "bias_nadapt_snr-5.pdf");
+
+b.adapt <- assess_bias(B=100, N=100, adapt="GD", sigma=0.1);
+qdraw(plot_bias(melt(b.adapt)), width=10, file = "bias_adapt_snr-5.pdf");
+
+b.adapt.brent <- assess_bias(B=100, N=100, adapt="Brent", sigma=0.1);
+qdraw(plot_bias(melt(b.adapt.brent)), width=10, file = "bias_adapt-brent_snr-5.pdf");
 
