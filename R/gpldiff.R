@@ -656,7 +656,8 @@ mean_center <- function(x) {
 plot.gpldiff <- function(model, data, center=FALSE) {
 	if (!is.null(model$predict)) {
 		cint <- confint(model);
-		ylim <- c(min(cint[,1]), max(cint[,2]));
+		flim <- c(min(cint[,1]), max(cint[,2]));
+		flim[1] <- flim[1] - diff(flim)*0.2;
 	} else {
 		cint <- NULL;
 	}
@@ -668,26 +669,42 @@ plot.gpldiff <- function(model, data, center=FALSE) {
 		data$y[data$g > 0] <- mean_center(data$y[data$g > 0]);
 	}
 		
-	par(mfrow=c(3,1), mai=c(0.6, 0.7, 0.1, 0.5));
+	par(mfrow=c(4,1), mai=c(0.6, 0.7, 0.1, 0.5));
 
 	# plot observed data
-	g <- data$g[idx] <= 0;
-	plot(NA, xlim=range(data$x), ylim=range(data$y), xlab="", ylab="observed responses");
-	lines(data$x[idx][g], data$y[idx][g], col="grey", pch=20, type="b", lwd=2);
-	lines(data$x[idx][!g], data$y[idx][!g], col="orange", pch=20, type="b", lwd=2);
-	legend("bottomright", inset=0.01, col=c("orange", "grey"), lwd=2, legend=c("case", "control"), bty="n");
+	g <- data$g[idx] >= 0;
+	ylim <- range(data$y);
+	ylim[1] <- ylim[1] - diff(ylim)*0.2;
+	plot(NA, xlim=range(data$x), ylim=ylim, xlab="", ylab="observed responses");
+	lines(data$x[idx][!g], data$y[idx][!g], col="#0073C2FF", pch=20, type="b", lwd=2);
+	lines(data$x[idx][g], data$y[idx][g], col="#EFC000FF", pch=20, type="b", lwd=2);
+	legend("bottomright", inset=0.01, col=c("#EFC000FF", "#0073C2FF"), lwd=2, legend=c("case", "control"), bty="n");
+	legend("bottomleft", inset=0.01, pch=c(20, 21), legend=c("observed", "estimated"), bty="n");
+	# plot estimated data
+	yhat <- (fit$params$mu + fit$params$f * data$g);
+	points(data$x[idx][!g], yhat[idx][!g], col="#0073C2FF", pch=21, type="b")
+	points(data$x[idx][g], yhat[idx][g], col="#EFC000FF", pch=21, type="b")
 
-	# plot latent difference f
-	plot(NA, xlim=range(data$x), ylim=ylim, xlab="", ylab="latent difference f", las=1);
+	# plot residual of y_hat
+	r <- data$y - yhat;
+	rlim <- range(r);
+	rlim[1] <- rlim[1] - diff(rlim)*0.2;
+	cols <- c("#0073C2FF", "#EFC000FF")[as.integer(g)+1];
+	plot(data$x[idx], r[idx], col=cols, pch=20, xlab="", ylab="residual", ylim=rlim);
+	abline(h = 0, col="grey30", lty=2);
+	legend("bottomleft", inset=0.01, pch=20, col=c("#EFC000FF", "#0073C2FF"), legend=c("case", "control"), bty="n");
+
+	# plot latent difference f_hat
+	plot(NA, xlim=range(data$x), ylim=flim, xlab="", ylab="latent difference f", las=1);
 	if (!is.null(data$f)) {
-		points(data$x, data$f, pch=20, col="grey30");
-		legend("bottomright", inset=0.01, col=c("grey30", "lightblue3"), pch=20, legend=c("truth", "estimated"), bty="n");
+		points(data$x, data$f, pch=20, col="#868686FF");
+		legend("bottomleft", inset=0.01, col=c("#868686FF", "#CD534CFF"), pch=c(20, 21), legend=c("truth", "estimated"), bty="n");
 	}
 	abline(h = 0, col="grey30", lty=2);
-	points(data$x[idx], model$params$f[idx], col="lightblue3", pch=20, lwd=2);
+	points(data$x[idx], model$params$f[idx], col="#CD534CFF", pch=21);
 	if (!is.null(cint)) {
-		lines(data$x[idx], cint[idx,1], col="grey", lwd=2);
-		lines(data$x[idx], cint[idx,2], col="grey", lwd=2);
+		lines(data$x[idx], cint[idx,1], col="#CD534C55", lwd=2);
+		lines(data$x[idx], cint[idx,2], col="#CD534C55", lwd=2);
 	}
 
 	# plot log posterior odds
@@ -697,7 +714,7 @@ plot.gpldiff <- function(model, data, center=FALSE) {
 	abline(h = 0, col="grey30", lty=2);
 	abline(h = -2, col="grey30");
 	abline(h = 2, col="grey30");
-	lines(data$x[idx], lodds[idx], col="red", pch=20, lwd=2);
+	lines(data$x[idx], lodds[idx], col="#CD534CFF", pch=20, lwd=2);
 }
 
 #' Summarize GPLDIFF model

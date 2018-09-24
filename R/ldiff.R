@@ -58,23 +58,38 @@ plot.ldiff_data <- function(object, fit) {
 	
 	with(object,
 		{
-			plot(c(x, x), c(m_a, m_b), xlab="x", ylab="y", type="n", main = "Truth data");
-			lines(x, m_a, col=3);
-			lines(x, m_b, col=4);
+			ylim <- range(c(y_a, y_b));
+			ylim[1] <- ylim[1] - diff(ylim)*0.5;
 
-			plot(c(x, x), c(y_a, y_b), xlab="x", ylab="y", type="n", main = "data with noise");
-			points(x, y_a, col=3);
-			points(x, y_b, col=4);
+			plot(c(x, x), c(m_a, m_b), ylim=ylim, xlab="", ylab="y", type="n", main = "Truth data");
+			lines(x, m_a, col="#0073C2FF", lwd=2);
+			lines(x, m_b, col="#EFC000FF", lwd=2);
+			legend("bottomright", inset=0.01, col=c("#0073C2FF", "#EFC000FF"), legend=c("case", "control"), lwd=2, bty="n");
 
-			plot(x, y, col=as.numeric(g > 0)+3, main = "Observed data with noise and missingness");
+			plot(c(x, x), c(y_a, y_b), ylim=ylim, xlab="", ylab="y", type="n", main = "Data observed with noise");
+			points(x, y_a, pch=19, col="#0073C2FF");
+			points(x, y_b, pch=19, col="#EFC000FF");
+			segments(x, y_a, x, y_b, col="#86868633", lwd=2);
+			legend("bottomright", inset=0.01, col=c("#0073C2FF", "#EFC000FF"), legend=c("case", "control"), pch=19, bty="n");
 
-			plot(x, f, main = "difference in mean", type="l", ylim=c(-1.5, 1.5));
+			cols <- c("#0073C2FF", "#EFC000FF")[as.numeric(g >= 0)+1];
+			plot(x, y, ylim=ylim, xlab="", col=cols, pch=20, main = "Data observed with noise and missingness");
+			points(x, y_a, pch=21, col="#0073C2FF");
+			points(x, y_b, pch=21, col="#EFC000FF");
+			segments(x, y_a, x, y_b, col="#86868633", lwd=2);
+			legend("bottomright", inset=0.01, col=c("#0073C2FF", "#EFC000FF"), legend=c("case", "control"), pch=19, bty="n");
+			legend("bottomleft", inset=0.01, legend=c("observed", "missing"), pch=c(19, 21), bty="n");
+
+			flim <- range(f)*1.8;
+			flim[1] <- flim[1] - diff(flim)*0.4;
+			plot(x, f, ylim=flim, xlab="x", main = "Latent difference", type="p", col="#868686FF", pch=19);
 
 			if (!is.null(fit)) {
 				fsd <- sqrt(fit$predict$fvar);
-				points(x, fit$params$f, main = "E[f]", col="red")
-				lines(x, fit$params$f - 2 * fsd, main = "E[f]", col="red")
-				lines(x, fit$params$f + 2 * fsd, main = "E[f]", col="red")
+				points(x, fit$params$f, main = "E[f]", col="#CD534CFF")
+				lines(x, fit$params$f - 2 * fsd, main = "E[f]", col="#CD534C55", lwd=2)
+				lines(x, fit$params$f + 2 * fsd, main = "E[f]", col="#CD534C55", lwd=2)
+				legend("bottomleft", inset=0.01, col=c("#868686FF", "#CD534CFF"), legend=c("truth", "estimated"), pch=c(19, 21), bty="n");
 			}
 		}
 	)

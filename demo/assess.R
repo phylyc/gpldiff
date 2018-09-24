@@ -133,89 +133,38 @@ qdraw(plot_coverage_profile(d.adapt.snr1), file ="coverage_adapt_snr-1.pdf");
 
 ####
 
-set.seed(1);
+snrs <- c(10, 5, 2, 1);
 
-N <- 100;
-data <- rldiff(N, sigma=0.05);
-snr(data)
+lapply(snrs,
+	function(snr) {
+		set.seed(3);
 
-fit <- gpldiff(data);
-coverage(fit, data)
-fit$params$sigma
-snr(fit)
-qdraw({plot(data, fit)}, height=10, file="fit_nadapt_snr-10.pdf")
+		N <- 100;
+		mu <- 0.5;
+		data <- rldiff(N, mu = mu, sigma=mu / snr);
+		snr(data)
 
-fit.adapt <- gpldiff(data, adapt="GD");
-coverage(fit.adapt, data)
-fit.adapt$params$sigma
-snr(fit.adapt)
-qdraw({plot(data, fit.adapt)}, height=10, file="fit_adapt_snr-10.pdf");
+		fit <- gpldiff(data);
+		qdraw({plot(data, fit)}, height=10, file=sprintf("data_nadapt_snr-%s.pdf", snr));
+		qdraw({plot(fit, data)}, height=10, file=sprintf("fit_nadapt_snr-%s.pdf", snr));
 
-####
+		fit.adapt <- gpldiff(data, adapt="GD");
+		qdraw({plot(data, fit.adapt)}, height=10, file=sprintf("data_adapt_snr-%s.pdf", snr));
+		qdraw({plot(fit.adapt, data)}, height=10, file=sprintf("fit_adapt_snr-%s.pdf", snr));
 
-set.seed(1);
+		message("SNR = ", snr)
 
-N <- 100;
-data <- rldiff(N, sigma=0.10);
-snr(data)
+		message("No adapt")
+		print(snr(fit))
+		print(coverage(fit, data))
+		print(fit$params$sigma)
 
-fit <- gpldiff(data);
-coverage(fit, data)
-fit$params$sigma
-snr(fit)
-qdraw({plot(data, fit)}, height=10, file="fit_nadapt_snr-5.pdf")
-
-fit.adapt <- gpldiff(data, adapt="GD");
-coverage(fit.adapt, data)
-fit.adapt$params$sigma
-snr(fit.adapt)
-qdraw({plot(data, fit.adapt)}, height=10, file="fit_adapt-gd_snr-5.pdf");
-
-fit.adapt <- gpldiff(data, adapt="Brent");
-coverage(fit.adapt, data)
-fit.adapt$params$sigma
-snr(fit.adapt)
-qdraw({plot(data, fit.adapt)}, height=10, file="fit_adapt-brent_snr-5.pdf");
-
-####
-
-set.seed(1);
-
-N <- 100;
-data <- rldiff(N, sigma=0.25);
-snr(data)
-
-fit <- gpldiff(data);
-coverage(fit, data)
-fit$params$sigma
-snr(fit)
-qdraw({plot(data, fit)}, height=10, file="fit_nadapt_snr-2.pdf")
-
-fit.adapt <- gpldiff(data, adapt="GD");
-coverage(fit.adapt, data)
-fit.adapt$params$sigma
-snr(fit.adapt)
-qdraw({plot(data, fit.adapt)}, height=10, file="fit_adapt_snr-2.pdf");
-
-####
-
-set.seed(1);
-
-N <- 100;
-data <- rldiff(N, sigma=0.5);
-snr(data)
-
-fit <- gpldiff(data);
-coverage(fit, data)
-fit$params$sigma
-snr(fit)
-qdraw({plot(data, fit)}, height=10, file="fit_nadapt_snr-1.pdf")
-
-fit.adapt <- gpldiff(data, adapt="GD");
-coverage(fit.adapt, data)
-fit.adapt$params$sigma
-snr(fit.adapt)
-qdraw({plot(data, fit.adapt)}, height=10, file="fit_adapt_snr-1.pdf");
+		message("Adapt")
+		print(snr(fit.adapt))
+		print(coverage(fit.adapt, data))
+		print(fit.adapt$params$sigma)
+	}
+);
 
 ####
 
