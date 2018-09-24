@@ -621,11 +621,13 @@ confint.gpldiff <- function(object, parm=NULL, level=0.95, ...) {
 	cint
 }
 
-#' Coverage probability of a fitted GPLDIFF model on observed data
+#' Empirical coverage probability of latent differences of a fitted GPLDIFF model
 #'
 #' @param model  \code{gpldiff} object
 #' @param data   known latent differences
 #' @param level  confidence level
+#' @return empirical coverage probability
+#'
 coverage.gpldiff <- function(model, data, level=0.95) {
 	if (is.null(model$predict)) {
 		stop("`gpldiff` object must have been created by calling `gpldiff()` with `predict=TRUE`");
