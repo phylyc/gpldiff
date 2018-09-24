@@ -88,6 +88,8 @@ plot_coverage_profile <- function(d) {
 
 ####
 
+
+message("SNR = ", snr)
 set.seed(1);
 
 conf.levels <- c(0.99, 0.95, 0.90, 0.80, 0.70, 0.60, 0.50, 0.40, 0.30, 0.20, 0.10);

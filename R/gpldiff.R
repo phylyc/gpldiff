@@ -675,13 +675,13 @@ plot.gpldiff <- function(model, data, center=FALSE) {
 	g <- data$g[idx] >= 0;
 	ylim <- range(data$y);
 	ylim[1] <- ylim[1] - diff(ylim)*0.2;
-	plot(NA, xlim=range(data$x), ylim=ylim, xlab="", ylab="observed responses");
+	plot(NA, xlim=range(data$x), ylim=ylim, xlab="", ylab="observed responses", las=1);
 	lines(data$x[idx][!g], data$y[idx][!g], col="#0073C2FF", pch=20, type="b", lwd=2);
 	lines(data$x[idx][g], data$y[idx][g], col="#EFC000FF", pch=20, type="b", lwd=2);
 	legend("bottomright", inset=0.01, col=c("#EFC000FF", "#0073C2FF"), lwd=2, legend=c("case", "control"), bty="n");
 	legend("bottomleft", inset=0.01, pch=c(20, 21), legend=c("observed", "estimated"), bty="n");
 	# plot estimated data
-	yhat <- (fit$params$mu + fit$params$f * data$g);
+	yhat <- (model$params$mu + model$params$f * data$g);
 	points(data$x[idx][!g], yhat[idx][!g], col="#0073C2FF", pch=21, type="b")
 	points(data$x[idx][g], yhat[idx][g], col="#EFC000FF", pch=21, type="b")
 
@@ -690,7 +690,7 @@ plot.gpldiff <- function(model, data, center=FALSE) {
 	rlim <- range(r);
 	rlim[1] <- rlim[1] - diff(rlim)*0.2;
 	cols <- c("#0073C2FF", "#EFC000FF")[as.integer(g)+1];
-	plot(data$x[idx], r[idx], col=cols, pch=20, xlab="", ylab="residual", ylim=rlim);
+	plot(data$x[idx], r[idx], col=cols, pch=20, xlab="", ylab="residual", ylim=rlim, las=1);
 	abline(h = 0, col="grey30", lty=2);
 	legend("bottomleft", inset=0.01, pch=20, col=c("#EFC000FF", "#0073C2FF"), legend=c("case", "control"), bty="n");
 
@@ -710,7 +710,7 @@ plot.gpldiff <- function(model, data, center=FALSE) {
 	# plot log posterior odds
 	lodds <- summary(model, log.odds=TRUE);
 	plot(NA, xlim=range(data$x[idx]), ylim=range(lodds[idx]),
-		xlab="x", ylab="log posterior odds");
+		xlab="x", ylab="log posterior odds", las=1);
 	abline(h = 0, col="grey30", lty=2);
 	abline(h = -2, col="grey30");
 	abline(h = 2, col="grey30");
