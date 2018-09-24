@@ -92,24 +92,32 @@ abline(a=0, b=1)
 
 fit <- fit.adapt;
 
-truth <- data.frame(
+gcols <- c(case="#EFC000FF", control="#0073C2FF");
+
+truth <- with(data, data.frame(
 	x = c(x, x), y = c(m_a, m_b),
 	group = factor(
 		c(rep("control", length(x)), rep("case", length(x))),
 		levels=names(gcols)
 	)
-);
+));
 
 # calculate confidence interval of f estimate
 cf <- confint(fit);
 
-d <- data.frame(
+d <- with(data, data.frame(
 	x = x,
 	f = f,
 	f_hat = fit$params$f,
 	f_hat_min = cf$lower,
-	f_hat_max = cf$upper
-);
+	f_hat_max = cf$upper,
+	y = y,
+	y_a = y_a,
+	y_b = y_b,
+	y_missing = ifelse(g <= 0, y_b, y_a),
+	group = factor(g, levels=c(0.5, -0.5), labels=names(gcols)),
+	group_missing = factor(g, levels=c(-0.5, 0.5), labels=names(gcols))
+));
 
 # identify regions where f > 0
 regions <- find_sig_regions(fit, data);
@@ -117,9 +125,7 @@ regions <- find_sig_regions(fit, data);
 
 # make prettier plots
 
-gcols <- c(control="royalblue", case="orangered");
-
-ymin <- -0.25;
+ymin <- -0.30;
 ymax <- 1.25;
 
 qdraw(
@@ -134,18 +140,32 @@ qdraw(
 );
 
 qdraw(
-	ggplot(data.frame(x=x, y=y, group = factor(g, labels=names(gcols))), aes(x, y, colour=group)) + theme_bw() +
+	ggplot(d, aes(x, y, colour=group)) + theme_bw() +
 		scale_colour_manual(values=gcols) +
-		geom_point(alpha=0.5) +
-		geom_spoke(aes(y=-1.8, colour=group), angle=pi/2, radius=0.2) +
-		xlab("position") + ylab("observed response") +
+		geom_point() +
+		geom_spoke(aes(y=-0.30, colour=group), angle=pi/2, radius=0.05) +
+		xlab("position") + ylab("response") +
 		ylim(ymin, ymax)
 	,
 	height = 2, width = 6,
 	file = "observed-data.pdf"
 );
 
-cols <- c(truth="grey20", estimate="firebrick2");
+qdraw(
+	ggplot(d, aes(x, y, colour=group)) + theme_bw() +
+		scale_colour_manual(values=gcols) +
+		geom_segment(aes(x=x, xend=x, y=y_a, yend=y_b), colour="grey", alpha=0.5) +
+		geom_point(aes(shape="yes")) +
+		geom_point(aes(y=y_missing, shape="no", colour=group_missing)) +
+		scale_shape_manual(name="observed", values=c(yes=19, no=21)) +
+		xlab("position") + ylab("response") +
+		ylim(ymin, ymax)
+	,
+	height = 2, width = 6,
+	file = "hidden-data.pdf"
+);
+
+cols <- c(truth="black", estimate="#CD534CFF");
 
 ymin <- -1.5;
 ymax <- 1.5;
