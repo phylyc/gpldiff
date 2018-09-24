@@ -10,7 +10,7 @@
 #' @param xsigma  standard deviation of noise to add to x values
 #' @param pg      probabilities of each group
 #' @param mu      global mean of data points
-#' @param sigma   standard deviation of observation noise in y values
+#' @param sigma2  variance of observation noise in y values
 #' @return a \code{list} object with both observed and latent variables
 #' @export
 #'
@@ -47,7 +47,7 @@ rldiff <- function(n, xlim=c(0, 10), xsigma=0.1, pg=c(0.5, 0.5), mu=0.5, sigma=0
 			y_a = y_a,
 			y_b = y_b,
 			mu = mu,
-			sigma = sigma
+			sigma2 = sigma*sigma
 		),
 		class = "ldiff_data"
 	)	
