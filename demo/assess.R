@@ -4,12 +4,26 @@ library(reshape2)
 
 lapply(list.files("../R/", "\\.R$", full.names=TRUE), source);
 
-signal_to_noise2 <- function(data) {
-	sd_signal <- sd(c(data$m_b, data$m_a));
-	sd_noise <- data$sigma;
+variance_ratio <- function(data) {
+	v_signal <- var(data$f);
+	v_noise <- data$sigma2;
 
-	sd_signal^2 / sd_noise^2
+	v_signal / v_noise
 }
+
+sigmas <- seq(0.05, 0.5, 0.05);
+
+ratios <- lapply(sigmas,
+	function(sigma) {
+		exp(rowMeans(log(matrix(unlist(lapply(1:B,
+			function(b) {
+				d <- rldiff(N, sigma=sigma)
+				c(snr(d), variance_ratio(d))
+			}
+		)), nrow=2))))
+	}
+);
+
 
 # NB only works for scalar parameters
 assess_bias <- function(B, N, sigma=0.05, pars=c("mu", "sigma2"), ...) {
