@@ -769,6 +769,6 @@ subset_gpldiff <- function(x, start, end) {
 #' @export
 #'
 snr.gpldiff <- function(object) {
-	object$params$mu / object$params$sigma
+	object$params$mu / sqrt(object$params$sigma2)
 }
 

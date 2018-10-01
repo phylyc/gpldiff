@@ -104,6 +104,6 @@ plot.ldiff_data <- function(object, fit) {
 #' @export
 #'
 snr.ldiff_data <- function(object) {
-	object$mu / object$sigma
+	object$mu / sqrt(object$sigma2)
 }
 
