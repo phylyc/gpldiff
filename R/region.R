@@ -171,7 +171,7 @@ process_regions <- function(regions, direction=1) {
 	}
 
 	# calculate Bayesian FDR
-	regions.f$fdr <- bayesian_fdr(regions$posterior);
+	regions.f$fdr <- bayesian_fdr(regions.f$posterior);
 
 	regions.f
 }

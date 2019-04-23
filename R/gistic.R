@@ -104,7 +104,7 @@ summary.gistic_gpldiffs <- function(fits, direction=1) {
 	names(regions.del) <- sub("Del.", "", names(regions.del));
 	regions.del <- process_regions(combine_regions(regions.del), direction=direction);
 
-	process_regiosn_from_gistic(rbind(
+	process_regions_from_gistic(rbind(
 		data.frame(
 			type = "Amp",
 			regions.amp
