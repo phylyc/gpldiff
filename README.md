@@ -5,7 +5,14 @@ This model was specifically applied to recurrent somatic copy-number analysis of
 
 ### Installation ###
 
-After `git clone`, this package may be installed using `devtools`. The documentation needs to be generated prior to installation.
+First, generated package data by
+
+```
+cd data-raw
+Rscript *.R
+```
+
+Then, this package may be installed using `devtools`. The documentation needs to be generated prior to installation.
 
 ```
 library(devtools)
