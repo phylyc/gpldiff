@@ -146,6 +146,20 @@ overlap <- function(s1, e1, s2, e2) {
 	!( e1 < s2 | e2 < s1 )
 }
 
+# assume coordinates are 1-based, closed
+jaccard_similarity <- function(s1, e1, s2, e2) {
+	# region of overlap
+	so <- pmax(s1, s2);
+	eo <- pmin(e1, e2);
+	ints <- eo - so + 1;
+
+	ifelse(ints > 0,
+		# D = \frac{ |X \cap Y| }{ |X| + |Y| - |X \cap Y| }
+		ints / ( (e1 - s1 + 1) + (e2 - s2 + 1) - ints ),
+		0
+	)
+}
+
 #' Postprocess significant regions
 #'
 #' Postprocess significant regions to remove problematic regions and

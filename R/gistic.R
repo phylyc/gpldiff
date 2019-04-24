@@ -150,7 +150,7 @@ combine_regions <- function(regions) {
 			function(d, chrom) {
 				if (!is.null(d)) {
 					data.frame(
-						chromosome = chrom,
+						chromosome = as.integer(chrom),
 						d
 					)
 				} else {
@@ -165,5 +165,36 @@ combine_regions <- function(regions) {
 	rownames(combined) <- NULL;
 
 	combined
+}
+
+read_gistic_peaks <- function(fname) {
+	x <- read.table(fname, sep="\t", header=TRUE, check.names=FALSE);	
+	y <- data.frame(
+		type = ifelse(grepl("Amplification", x[["Unique Name"]]), "Amp",
+			ifelse(grepl("Deletion", x[["Unique Name"]]), "Del", NA)),
+		string_to_coordinate(x[["Wide Peak Limits"]]),
+		q = x[["q values"]]
+	);
+	y
+}
+
+summary_append_gistic_peaks <- function(x, peaks, jaccard.cut = 0) {
+	y <- x;
+	y$gistic_jaccard <- NA;
+	y$gistic_q <- NA;
+	for (i in 1:nrow(x)) {
+		r <- x[i, ];
+		s <- peaks[peaks$type == r$type & peaks$chromosome == r$chromosome, ];
+		if (nrow(s) > 0) {
+			jaccard <- jaccard_similarity(r$start, r$end, s$start, s$end);
+			idx <- which.max(jaccard);
+			if (jaccard[idx] > jaccard.cut) {
+				y$gistic_jaccard[i] <- jaccard[idx];
+				y$gistic_q[i] <- s$q[idx];
+			}
+		}
+	}
+
+	y
 }
 
