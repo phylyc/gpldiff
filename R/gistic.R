@@ -100,14 +100,24 @@ summary.gistic_gpldiffs <- function(fits, direction=1) {
 	names(regions.amp) <- sub("Amp.", "", names(regions.amp));
 	regions.amp <- process_regions(combine_regions(regions.amp), direction=direction);
 	if (nrow(regions.amp) > 0) {
-		regions.amp$type <- "Amp";
+		regions.amp <- data.frame(
+			type = "Amp",
+			regions.amp
+		);
+	} else {
+		regions.amp <- NULL;
 	}
 
 	regions.del <- regions.all[grep("Del", names(regions.all)), drop=FALSE];
 	names(regions.del) <- sub("Del.", "", names(regions.del));
 	regions.del <- process_regions(combine_regions(regions.del), direction=direction);
 	if (nrow(regions.del) > 0) {
-		regions.del$type <- "Del";
+		regions.del <- data.frame(
+			type = "Del",
+			regions.del
+		);
+	} else {
+		regions.del <- NULL;
 	}
 
 	process_regions_from_gistic(
