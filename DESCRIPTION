@@ -10,4 +10,5 @@ Depends: parallel
 URL: https://bitbucket.org/djhshih/gpldiff
 BugReports: https://bitbucket.org/djhshih/gpldiff/issues
 License: GPL (>= 3)
-RoxygenNote: 6.1.0
+Encoding: UTF-8
+RoxygenNote: 6.1.1
