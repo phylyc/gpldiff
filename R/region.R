@@ -173,6 +173,8 @@ jaccard_similarity <- function(s1, e1, s2, e2) {
 #' @return  \code{data.frame} of filtered regions 
 #'
 process_regions <- function(regions, direction=1) {
+	if (is.null(regions)) return(NULL);
+
 	regions <- regions[order(regions$posterior, decreasing=TRUE), ];
 
 	# filter problematic regions
