@@ -6,7 +6,7 @@ Date: 2017-05-25
 Author: David J. H. Shih
 Maintainer: David J. H. Shih <djh.shih@gmail.com>
 Description: Gaussian process latent difference model
-Depends: parallel
+Imports: parallel
 URL: https://bitbucket.org/djhshih/gpldiff
 BugReports: https://bitbucket.org/djhshih/gpldiff/issues
 License: GPL (>= 3)
