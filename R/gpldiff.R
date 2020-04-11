@@ -355,6 +355,7 @@ adam_step <- function(momentum, learn.rate = 0.01, eps = 1e-8) {
 #' estimates of parameters. Hyperparameters are estimated by maximizing the
 #' marginal likelihood conditional on the hyperparameters. The primary
 #' parameter of interest is \code{f}, representing the latent group difference.
+#' The worst-case time complexity is O(J^3) and space complexity is O(J^2).
 #'
 #' The model is
 #'
@@ -375,7 +376,8 @@ adam_step <- function(momentum, learn.rate = 0.01, eps = 1e-8) {
 #' parameters \code{mu} and \code{sigma} are approximated by delta functions.
 #' Hyperparameters are optimized by numerical optimization.
 #'
-#' @param data      observed data; list of x, g, y
+#' @param data      observed data; a \code{list} of (J, x, g, y),
+#'                  or a \code{gpldiff_data} object
 #' @param params    initial parameter values; list of f, mu, sigma
 #' @param hparams   hyperparameters; list of nu2, lambda2, alpha, beta, tau2
 #' @param adapt     whether to learn hyperparameters
@@ -387,6 +389,7 @@ adam_step <- function(momentum, learn.rate = 0.01, eps = 1e-8) {
 #' @param max.iter  maximum number of iterations at parameter level
 #' @param max.iter2 maximum number of iterations at hyperparameter level
 #' @param predict   whether to save variables required for prediction
+#' @param verbose   verbosity level; none: 0, info: 1, debug: 2
 #' @return \code{gpldiff} object
 #' @export
 #' @examples
@@ -404,9 +407,14 @@ adam_step <- function(momentum, learn.rate = 0.01, eps = 1e-8) {
 #' plot(fit, data);
 #' }
 #'
-gpldiff <- function(data, params=NULL, hparams=NULL, adapt=c("none", "GD", "GDM", "ADAM", "L-BFGS-B", "Brent"), learn.rate=0.2, tol=1e-1, tol2=1e-1, max.iter=10, max.iter2=10, predict=TRUE, verbose=FALSE, ...) {
+gpldiff <- function(data, params=NULL, hparams=NULL, adapt=c("none", "GD", "GDM", "ADAM", "L-BFGS-B", "Brent"), learn.rate=0.2, tol=1e-1, tol2=1e-1, max.iter=10, max.iter2=10, predict=TRUE, verbose=1, ...) {
 	if (is.null(hparams)) {
 		hparams <- default_hparams();
+	}
+
+	if (verbose >= 1) {
+		time.began <- proc.time();
+		message("J: ", data$J);
 	}
 
 	adapt <- match.arg(adapt);
@@ -428,7 +436,7 @@ gpldiff <- function(data, params=NULL, hparams=NULL, adapt=c("none", "GD", "GDM"
 
 		while (delta > tol2) {
 			niters <- niters + 1;
-			if (verbose) {
+			if (verbose >= 2) {
 				message("iteration ", niters)
 			}
 
@@ -444,9 +452,9 @@ gpldiff <- function(data, params=NULL, hparams=NULL, adapt=c("none", "GD", "GDM"
 													hgradient=TRUE);
 				ll <- res$evidence;
 
-				if (verbose) {
-					message("hparams ", hparams$nu2, " ", hparams$lambda2)
-					message("hgrads ", res$gradient$nu2, " ", res$gradient$lambda2)
+				if (verbose >= 2) {
+					message("hparams: ", hparams$nu2, " ", hparams$lambda2)
+					message("hgrads: ", res$gradient$nu2, " ", res$gradient$lambda2)
 				}
 
 				if (ll < old.ll) {
@@ -454,9 +462,10 @@ gpldiff <- function(data, params=NULL, hparams=NULL, adapt=c("none", "GD", "GDM"
 					hparams <- hparams.old;
 					learn.rate <- learn.rate * 0.5;
 					old.ll <- -Inf;
-					if (verbose) {
-						message("log evidence = ", ll, " ... Backtrack")
-						message("learn rate = ", learn.rate)
+					if (verbose >= 2) {
+						message("log evidence: ", ll)
+						message("learn rate: ", learn.rate)
+						message("backtracking ...")
 					}
 
 					next;
@@ -489,10 +498,10 @@ gpldiff <- function(data, params=NULL, hparams=NULL, adapt=c("none", "GD", "GDM"
 				hparams$lambda2 <- hparams$lambda2 - step.lambda2;
 				hparams$nu2 <- hparams$nu2 - step.nu2;
 
-				if (verbose) {
-					message("ADAM M1 ", m.nu2[1], " ", m.lambda2[1]);
-					message("ADAM M2 ", m.nu2[2], " ", m.lambda2[2]);
-					message("ADAM Step ", step.nu2, " ", step.lambda2)
+				if (verbose >= 2) {
+					message("ADAM m1: ", m.nu2[1], " ", m.lambda2[1]);
+					message("ADAM m2: ", m.nu2[2], " ", m.lambda2[2]);
+					message("ADAM step: ", step.nu2, " ", step.lambda2)
 				}
 
 			} else if (adapt == "L-BFGS-B") {
@@ -516,8 +525,8 @@ gpldiff <- function(data, params=NULL, hparams=NULL, adapt=c("none", "GD", "GDM"
 					fn = function(par) {
 						hparams$nu2 <- exp(par[1])^2;
 						hparams$lambda2 <- exp(par[2])^2;
-						if (verbose) {
-							message("hparams ", hparams$nu2, " ", hparams$lambda2)
+						if (verbose >= 2) {
+							message("hparams: ", hparams$nu2, " ", hparams$lambda2)
 						}
 						fit_params(data, params, hparams, tol=tol, max.iter=max.iter,
 											 predict=FALSE)$evidence
@@ -566,8 +575,8 @@ gpldiff <- function(data, params=NULL, hparams=NULL, adapt=c("none", "GD", "GDM"
 				ll <- opt.nu$objective;
 			}
 
-			if (verbose) {
-				message("log evidence = ", ll);
+			if (verbose >= 2) {
+				message("log evidence: ", ll);
 			}
 
 			# enforce bounds
@@ -588,8 +597,10 @@ gpldiff <- function(data, params=NULL, hparams=NULL, adapt=c("none", "GD", "GDM"
 	model <- fit_params(data, params, hparams, tol=tol, max.iter=max.iter, predict=predict, ...);
 	model$niters <- c(model$niters, niters);
 
-	if (verbose) {
-		message("final log evidence = ", model$evidence);
+	if (verbose >= 1) {
+		message("final log evidence: ", model$evidence);
+		elapsed <- proc.time() - time.began;
+		message("elapsed wall time: ", elapsed[3]);
 	}
 
 	model
@@ -651,15 +662,21 @@ mean_center <- function(x) {
 #'
 #' @param model \code{gpldiff} object
 #' @param data  data used to fit model
+#' @param center  whether to center the response variable
+#' @param estimated  whether to plot estimated points
 #' @export
 #'
-plot.gpldiff <- function(model, data, center=FALSE) {
+plot.gpldiff <- function(model, data, which=NULL, center=FALSE, estimated=FALSE, xlab="x") {
 	if (!is.null(model$predict)) {
 		cint <- confint(model);
 		flim <- c(min(cint[,1]), max(cint[,2]));
 		flim[1] <- flim[1] - diff(flim)*0.2;
 	} else {
 		cint <- NULL;
+	}
+
+	if (is.null(which)) {
+		which <- c("response", "residual", "latent", "odds");
 	}
 
 	idx <- order(data$x);
@@ -669,52 +686,63 @@ plot.gpldiff <- function(model, data, center=FALSE) {
 		data$y[data$g > 0] <- mean_center(data$y[data$g > 0]);
 	}
 		
-	par(mfrow=c(4,1), mai=c(0.6, 0.7, 0.1, 0.5));
+	par(mfrow=c(length(which),1), mai=c(0.8, 0.9, 0.1, 0.5));
 
-	# plot observed data
 	g <- data$g[idx] >= 0;
-	ylim <- range(data$y);
-	ylim[1] <- ylim[1] - diff(ylim)*0.2;
-	plot(NA, xlim=range(data$x), ylim=ylim, xlab="", ylab="observed responses", las=1);
-	lines(data$x[idx][!g], data$y[idx][!g], col="#0073C2FF", pch=20, type="b", lwd=2);
-	lines(data$x[idx][g], data$y[idx][g], col="#EFC000FF", pch=20, type="b", lwd=2);
-	legend("bottomright", inset=0.01, col=c("#EFC000FF", "#0073C2FF"), lwd=2, legend=c("case", "control"), bty="n");
-	legend("bottomleft", inset=0.01, pch=c(20, 21), legend=c("observed", "estimated"), bty="n");
-	# plot estimated data
 	yhat <- (model$params$mu + model$params$f * data$g);
-	points(data$x[idx][!g], yhat[idx][!g], col="#0073C2FF", pch=21, type="b")
-	points(data$x[idx][g], yhat[idx][g], col="#EFC000FF", pch=21, type="b")
 
-	# plot residual of y_hat
-	r <- data$y - yhat;
-	rlim <- range(r);
-	rlim[1] <- rlim[1] - diff(rlim)*0.2;
-	cols <- c("#0073C2FF", "#EFC000FF")[as.integer(g)+1];
-	plot(data$x[idx], r[idx], col=cols, pch=20, xlab="", ylab="residual", ylim=rlim, las=1);
-	abline(h = 0, col="grey30", lty=2);
-	legend("bottomleft", inset=0.01, pch=20, col=c("#EFC000FF", "#0073C2FF"), legend=c("case", "control"), bty="n");
+	if ("response" %in% which) {
+		# plot observed data
+		ylim <- range(data$y);
+		ylim[1] <- ylim[1] - diff(ylim)*0.2;
+		plot(NA, xlim=range(data$x), ylim=ylim, xlab="", ylab="observed responses", las=1);
+		lines(data$x[idx][!g], data$y[idx][!g], col="#0073C2FF", pch=20, type="b", lwd=2);
+		lines(data$x[idx][g], data$y[idx][g], col="#EFC000FF", pch=20, type="b", lwd=2);
+		legend("bottomright", inset=0.01, col=c("#EFC000FF", "#0073C2FF"), lwd=2, legend=c("case", "control"), bty="n");
+		# plot estimated data
+		if (estimated) {
+			points(data$x[idx][!g], yhat[idx][!g], col="#0073C2FF", pch=21, type="b")
+			points(data$x[idx][g], yhat[idx][g], col="#EFC000FF", pch=21, type="b")
+			legend("bottomleft", inset=0.01, pch=c(20, 21), legend=c("observed", "estimated"), bty="n");
+		}
+	}
+
+	if ("residual" %in% which) {
+		# plot residual of y_hat
+		r <- data$y - yhat;
+		rlim <- range(r);
+		rlim[1] <- rlim[1] - diff(rlim)*0.2;
+		cols <- c("#0073C2FF", "#EFC000FF")[as.integer(g)+1];
+		plot(data$x[idx], r[idx], col=cols, pch=20, xlab="", ylab="residual", ylim=rlim, las=1);
+		abline(h = 0, col="grey30", lty=2);
+		legend("bottomleft", inset=0.01, pch=20, col=c("#EFC000FF", "#0073C2FF"), legend=c("case", "control"), bty="n");
+	}
 
 	# plot latent difference f_hat
-	plot(NA, xlim=range(data$x), ylim=flim, xlab="", ylab="latent difference f", las=1);
-	if (!is.null(data$f)) {
-		points(data$x, data$f, pch=20, col="#868686FF");
-		legend("bottomleft", inset=0.01, col=c("#868686FF", "#CD534CFF"), pch=c(20, 21), legend=c("truth", "estimated"), bty="n");
-	}
-	abline(h = 0, col="grey30", lty=2);
-	points(data$x[idx], model$params$f[idx], col="#CD534CFF", pch=21);
-	if (!is.null(cint)) {
-		lines(data$x[idx], cint[idx,1], col="#CD534C55", lwd=2);
-		lines(data$x[idx], cint[idx,2], col="#CD534C55", lwd=2);
+	if ("latent" %in% which) {
+		plot(NA, xlim=range(data$x), ylim=flim, xlab="", ylab="latent difference f", las=1);
+		if (!is.null(data$f)) {
+			points(data$x, data$f, pch=20, col="#868686FF");
+			legend("bottomleft", inset=0.01, col=c("#868686FF", "#CD534CFF"), pch=c(20, 21), legend=c("truth", "estimated"), bty="n");
+		}
+		abline(h = 0, col="grey30", lty=2);
+		points(data$x[idx], model$params$f[idx], col="#CD534CFF", pch=21);
+		if (!is.null(cint)) {
+			lines(data$x[idx], cint[idx,1], col="#CD534C55", lwd=2);
+			lines(data$x[idx], cint[idx,2], col="#CD534C55", lwd=2);
+		}
 	}
 
 	# plot log posterior odds
-	lodds <- summary(model, log.odds=TRUE);
-	plot(NA, xlim=range(data$x[idx]), ylim=range(lodds[idx]),
-		xlab="x", ylab="log posterior odds", las=1);
-	abline(h = 0, col="grey30", lty=2);
-	abline(h = -2, col="grey30");
-	abline(h = 2, col="grey30");
-	lines(data$x[idx], lodds[idx], col="#CD534CFF", pch=20, lwd=2);
+	if ("odds" %in% which) {
+		lodds <- summary(model, log.odds=TRUE);
+		plot(NA, xlim=range(data$x[idx]), ylim=range(lodds[idx]),
+			xlab=xlab, ylab="log posterior odds", las=1);
+		abline(h = 0, col="grey30", lty=2);
+		abline(h = -2, col="grey30");
+		abline(h = 2, col="grey30");
+		lines(data$x[idx], lodds[idx], col="#CD534CFF", pch=20, lwd=2);
+	}
 }
 
 #' Summarize GPLDIFF model
