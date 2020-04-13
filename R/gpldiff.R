@@ -376,10 +376,10 @@ adam_step <- function(momentum, learn.rate = 0.01, eps = 1e-8) {
 #' parameters \code{mu} and \code{sigma} are approximated by delta functions.
 #' Hyperparameters are optimized by numerical optimization.
 #'
-#' @param data      observed data; a \code{list} of (J, x, g, y),
+#' @param data      observed data; a \code{list} of J, x, g, y;
 #'                  or a \code{gpldiff_data} object
-#' @param params    initial parameter values; list of f, mu, sigma
-#' @param hparams   hyperparameters; list of nu2, lambda2, alpha, beta, tau2
+#' @param params    initial parameter values; a \code{list} of f, mu, sigma
+#' @param hparams   hyperparameters; a \code{list} of nu2, lambda2, alpha, beta, tau2
 #' @param adapt     whether to learn hyperparameters
 #' @param learn.rate  learning rate for hyperparameters
 #'                    (set to 0 to optimize hyperparameters using the slow
