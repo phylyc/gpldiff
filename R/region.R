@@ -171,6 +171,7 @@ jaccard_similarity <- function(s1, e1, s2, e2) {
 #' @param direction  direction of significance (value must be consistent
 #'                   with the value used in \code{find_sig_regions}.
 #' @return  \code{data.frame} of filtered regions 
+#' @export
 #'
 process_regions <- function(regions, direction=1) {
 	if (is.null(regions)) return(NULL);
