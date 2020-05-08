@@ -1,18 +1,11 @@
 # Gaussian process latent difference model #
 
 Package for fitting a Gaussian process model to detect latent difference between two populations, under the assumption that this latent difference is distributed as a multivariate Gaussian.
-This model was specifically applied to recurrent somatic copy-number analysis of cancer samples in a case-control design.
 
 ### Installation ###
 
-First, generated package data by
-
-```
-cd data-raw
-Rscript *.R
-```
-
-Then, this package may be installed using `devtools`. The documentation needs to be generated prior to installation.
+This package may be installed using `devtools`,
+but the documentation needs to be generated prior to installation.
 
 ```
 library(devtools)
