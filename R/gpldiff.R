@@ -300,6 +300,11 @@ fit_params <- function(data, params, hparams, tol=1e-5, max.iter=10, predict=TRU
 		}
 
 		delta <- norm(as.matrix(old - unlist(params)), "F");
+		if (is.na(delta)) {
+			print(params);
+			stop("Numerical difficulties encountered; `params` contain NA values.")
+		}
+
 		niters <- niters + 1;
 		if (niters >= max.iter) break;
 	}
