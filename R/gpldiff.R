@@ -75,6 +75,8 @@ compute_a <- function(S, b, dsqrt) {
 	# thus, B^{-1} = (L U)^{-1} = U^{-1} L^{-1}
 	# A^{-1} b == solve(A, b)
 
+	# NB Numerical difficulty can occur here!
+	#    this may return a vector of NaNs
 	b - Dsqrt %*% solve(U, solve(L, Dsqrt %*% (S %*% b)))
 }
 
@@ -287,12 +289,24 @@ fit_params <- function(data, params, hparams, tol=1e-5, max.iter=10, predict=TRU
 
 		if (!fixed$f) {
 			params$f <- argmax_f_lp(data$y, data$g, params$mu, params$sigma2, K);
+			if (any(is.nan(params$f))) {
+				print(str(params$f));
+				stop("Numerical difficulties encountered; `f` contains NaN values.")
+			}
 		}
 		if (!fixed$mu) {
 			params$mu <- argmax_mu_lp(data$y, data$g, params$f, params$sigma2, hparams$tau2);
+			if (any(is.nan(params$mu))) {
+				print(str(params$mu));
+				stop("Numerical difficulties encountered; `mu` is NaN.")
+			}
 		}
 		if (!fixed$sigma2) {
 			params$sigma2 <- argmax_sigma2_lp(data$y, data$g, params$f, params$mu, hparams$alpha, hparams$beta);
+			if (any(is.nan(params$sigma2))) {
+				print(str(params$sigma2));
+				stop("Numerical difficulties encountered: `sigma2` is NaN.")
+			}
 		}
 
 		if (plot) {
@@ -302,7 +316,7 @@ fit_params <- function(data, params, hparams, tol=1e-5, max.iter=10, predict=TRU
 		delta <- norm(as.matrix(old - unlist(params)), "F");
 		if (is.na(delta)) {
 			print(str(params));
-			stop("Numerical difficulties encountered; `params` contain NA values.")
+			stop("Numerical difficulties encountered; `params` contain NaN values.")
 		}
 
 		niters <- niters + 1;
@@ -423,6 +437,8 @@ gpldiff <- function(data, params=NULL, hparams=NULL, adapt=c("none", "GD", "GDM"
 	}
 
 	adapt <- match.arg(adapt);
+
+	check_data(data);
 
 	niters <- 0;
 	if (adapt != "none") {
@@ -803,5 +819,12 @@ subset_gpldiff <- function(x, start, end) {
 #'
 snr.gpldiff <- function(object) {
 	object$params$mu / sqrt(object$params$sigma2)
+}
+
+check_data <- function(data) {
+	stopifnot(data$J > 0);
+	stopifnot(!any(is.na(data$x)));
+	stopifnot(!any(is.na(data$y)));
+	stopifnot(!any(is.na(data$g)));
 }
 
