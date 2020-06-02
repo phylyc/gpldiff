@@ -42,7 +42,7 @@ find_sig_regions <- function(model, data, lodds.cut=2, max.gap=5, min.obs=2, dir
 		prob <- 1 - prob;
 	}
 
-	lodds <- log10(prob) - log10(1 - prob);
+	lodds <- log(prob) - log(1 - prob);
 	idx <- which(lodds > lodds.cut);
 
 	if (length(idx) <= 1) return(NULL);
