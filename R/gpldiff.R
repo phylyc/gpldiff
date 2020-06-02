@@ -756,12 +756,13 @@ plot.gpldiff <- function(model, data, which=NULL, center=FALSE, estimated=FALSE,
 
 	# plot log posterior odds
 	if ("odds" %in% which) {
+		lodds.cut <- 5;
 		lodds <- summary(model, log.odds=TRUE);
 		plot(NA, xlim=range(data$x[idx]), ylim=range(lodds[idx]),
 			xlab=xlab, ylab="log posterior odds", las=1);
 		abline(h = 0, col="grey30", lty=2);
-		abline(h = -2, col="grey30");
-		abline(h = 2, col="grey30");
+		abline(h = -lodds.cut, col="grey30");
+		abline(h = lodds.cut, col="grey30");
 		lines(data$x[idx], lodds[idx], col="#CD534CFF", pch=20, lwd=2);
 	}
 }

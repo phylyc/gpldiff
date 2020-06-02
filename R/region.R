@@ -33,7 +33,7 @@
 #' }
 #' @export
 #'
-find_sig_regions <- function(model, data, lodds.cut=2, max.gap=5, min.obs=2, direction=1,
+find_sig_regions <- function(model, data, lodds.cut=5, max.gap=5, min.obs=2, direction=1,
 	process=TRUE) {
 	# find candidate regions
 
