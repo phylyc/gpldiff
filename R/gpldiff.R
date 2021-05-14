@@ -685,6 +685,8 @@ mean_center <- function(x) {
 #' @param data  data used to fit model
 #' @param center  whether to center the response variable
 #' @param estimated  whether to plot estimated points
+#'
+#' @method plot gpldiff
 #' @export
 #'
 plot.gpldiff <- function(model, data, which=NULL, center=FALSE, estimated=FALSE, xlab="x") {
@@ -772,6 +774,7 @@ plot.gpldiff <- function(model, data, which=NULL, center=FALSE, estimated=FALSE,
 #' Calculate the posterior probability that \code{f > 0}.
 #' 
 #' @param object \code{gpldiff} object
+#' @method summary gpldiff
 #' @export
 #'
 summary.gpldiff <- function(object, log.odds = FALSE, ...) {
@@ -816,6 +819,8 @@ subset_gpldiff <- function(x, start, end) {
 #'
 #' @param object \code{gpldiff} object
 #' @return \code{numeric} value
+#'
+#' @method snr gpldiff
 #' @export
 #'
 snr.gpldiff <- function(object) {
