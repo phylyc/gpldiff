@@ -17,6 +17,12 @@ Note: Do not simply run `devtools::install_bitbucket()` as it will not generated
 
 ### Example ###
 
+First, load the package.
+
+```
+library(gpldiff)
+```
+
 The observed data object `d` should be inputted as a `list` consisting of
 
 - `x`, a vector containing values for the continuous independent variable
@@ -32,8 +38,6 @@ d <- rldiff(200);
 The model hyperparameters should be fixed, while the model parameters may be inferred by the model from the data.
 
 ```
-library(gpldiff)
-
 hparams <- list(
 	nu2 = 1,
 	lambda2 = 1,
