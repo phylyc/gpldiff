@@ -17,11 +17,17 @@ Note: Do not simply run `devtools::install_bitbucket()` as it will not generated
 
 ### Example ###
 
-The observed `data` should be inputted as a `list` consisting of
+The observed data object `d` should be inputted as a `list` consisting of
 
 - `x`, a vector containing values for the continuous independent variable
 - `g`, a vector containing `-0.5` or `0.5` for membership in control group or case group, respectively
 - `y`, a vector containing values for the continuous response variable
+
+If you do not have your own data, you can simulate two non-linear data series with missingness by
+
+```
+d <- rldiff(200);
+```
 
 The model hyperparameters should be fixed, while the model parameters may be inferred by the model from the data.
 
@@ -42,14 +48,14 @@ params <- NULL
 We can now fit the model by
 
 ```
-fit <- gpldiff(data, params, hparams)
+fit <- gpldiff(d, params, hparams)
 ```
 
 We can view the summary statistics and generate plots:
 
 ```
 summary(fit)
-plot(fit, data)
+plot(fit, d)
 ```
 
 See `?gpldiff` for more information.
