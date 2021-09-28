@@ -13,7 +13,7 @@ document()
 install()
 ```
 
-Note: Do not simply run devtools::install_bitbucket() as it will not generated the documentation files.
+Note: Do not simply run `devtools::install_bitbucket()` as it will not generated the documentation files.
 
 ### Example ###
 
