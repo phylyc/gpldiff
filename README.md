@@ -32,7 +32,7 @@ The observed data object `d` should be inputted as a `list` consisting of
 If you do not have your own data, you can simulate two non-linear data series with missingness by
 
 ```
-d <- rldiff(200);
+d <- rldiff(200)
 ```
 
 The model hyperparameters should be fixed, while the model parameters may be inferred by the model from the data.
