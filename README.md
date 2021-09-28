@@ -4,14 +4,16 @@ Package for fitting a Gaussian process model to detect latent difference between
 
 ### Installation ###
 
-This package may be installed using `devtools`,
-but the documentation needs to be generated prior to installation.
+The required documentation files for this package needs to generated before
+this package can be installed using `devtools`.
 
 ```
 library(devtools)
 document()
 install()
 ```
+
+Note: Do not simply run devtools::install_bitbucket() as it will not generated the documentation files.
 
 ### Example ###
 
