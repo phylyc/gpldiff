@@ -46,41 +46,17 @@ find_sig_regions <- function(model, data, lodds.cut=5, max.gap=5, min.obs=2, dir
 	idx <- which(lodds > lodds.cut);
 
 	if (length(idx) <= 1) return(NULL);
-
-	# mark contiguous start and ends with 1 and -1 respectively
-	# gap size between two contiguous regions is j - i - 1
-	# where i is the end index of the first region
-	#       j is the start index of the second region
-	# therefore, j - i - 1 <= max.gap
-	#            j - i <= max.gap + 1
-	# note the start (1) and end (-1) markers inserted at both ends
-	boundaries <- c(1, diff(diff(idx) <= max.gap + 1), -1);
-
-	start_idx <- idx[which(boundaries == 1)];
-	end_idx <- idx[which(boundaries == -1)];
-
-	if (length(start_idx) >= 2 && end_idx[1] > start_idx[2]) {
-		# second region starts before the first segment ends
-		# first region is a singleton and not marked by an end marker
-		start_idx <- start_idx[-1];
-	}
-
-	if (length(end_idx) >= 2 && start_idx[length(start_idx)] < end_idx[length(end_idx)-1]) {
-		# last region is a singleton and not marked by a start marker
-		end_idx <- end_idx[-length(end_idx)];
-	}
+	
+	intervals <- find_contiguous(idx, max.gap=max.gap, min.obs=min.obs);
 
 	# construct start and end indices of candidate regions
 	regions <- data.frame(
-		start = data$x[start_idx],
-		end = data$x[end_idx],
-		start_idx = start_idx,
-		end_idx = end_idx,
-		n_obs = end_idx - start_idx + 1
+		start = data$x[intervals$start],
+		end = data$x[intervals$end],
+		start_idx = intervals$start,
+		end_idx = intervals$end,
+		n_obs = intervals$n
 	);
-
-	# filter regions for number of observations
-	regions <- regions[regions$n_obs >= min.obs, ];
 
 	if (nrow(regions) > 0) {
 		# TODO avoid duplication
@@ -125,6 +101,47 @@ find_sig_regions <- function(model, data, lodds.cut=5, max.gap=5, min.obs=2, dir
 	} else {
 		regions
 	}
+}
+
+# find contiguous positive intervals from a logical vector
+# @param idx  logical vector
+# @param max.gap     if the gap size between two adjacent candidate regions
+#                    is less than this threshold, then these regions are
+#                    merged together
+# @param min.obs     minimum number of observations required for any significant region
+# @return start and end indexes of intervals that contain stretches of
+# positivity
+find_contiguous <- function(idx, max.gap=5, min.obs=2) {
+	# mark contiguous start and ends with 1 and -1 respectively
+	# gap size between two contiguous regions is j - i - 1
+	# where i is the end index of the first region
+	#       j is the start index of the second region
+	# therefore, j - i - 1 <= max.gap
+	#            j - i <= max.gap + 1
+	# note the start (1) and end (-1) markers inserted at both ends
+	boundaries <- c(1, diff(diff(idx) <= max.gap + 1), -1);
+
+	start_idx <- idx[which(boundaries == 1)];
+	end_idx <- idx[which(boundaries == -1)];
+
+	if (length(start_idx) >= 2 && end_idx[1] > start_idx[2]) {
+		# second region starts before the first segment ends
+		# first region is a singleton and not marked by an end marker
+		start_idx <- start_idx[-1];
+	}
+
+	if (length(end_idx) >= 2 && start_idx[length(start_idx)] < end_idx[length(end_idx)-1]) {
+		# last region is a singleton and not marked by a start marker
+		end_idx <- end_idx[-length(end_idx)];
+	}
+
+	d <- data.frame(
+		start = start_idx,
+		end = end_idx,
+		n = start_idx - end_idx + 1
+	)
+
+	d[d$n >= min.obs, ]
 }
 
 # calculate the posterior probability that mean f in region > 0
