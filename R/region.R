@@ -44,10 +44,9 @@ find_sig_regions <- function(model, data, lodds.cut=5, max.gap=5, min.obs=2, dir
 
 	lodds <- log(prob) - log(1 - prob);
 	idx <- which(lodds > lodds.cut);
-
-	if (length(idx) <= 1) return(NULL);
 	
 	intervals <- find_contiguous(idx, max.gap=max.gap, min.obs=min.obs);
+	if (is.null(intervals)) return(NULL);
 
 	# construct start and end indices of candidate regions
 	regions <- data.frame(
@@ -103,8 +102,8 @@ find_sig_regions <- function(model, data, lodds.cut=5, max.gap=5, min.obs=2, dir
 	}
 }
 
-# find contiguous positive intervals from a logical vector
-# @param idx  logical vector
+# find contiguous positive intervals from an index vector
+# @param idx         index vector
 # @param max.gap     if the gap size between two adjacent candidate regions
 #                    is less than this threshold, then these regions are
 #                    merged together
@@ -112,6 +111,7 @@ find_sig_regions <- function(model, data, lodds.cut=5, max.gap=5, min.obs=2, dir
 # @return start and end indexes of intervals that contain stretches of
 # positivity
 find_contiguous <- function(idx, max.gap=5, min.obs=2) {
+	if (length(idx) <= 1) return(NULL);
 	# mark contiguous start and ends with 1 and -1 respectively
 	# gap size between two contiguous regions is j - i - 1
 	# where i is the end index of the first region
