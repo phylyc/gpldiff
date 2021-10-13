@@ -138,7 +138,7 @@ find_contiguous <- function(idx, max.gap=5, min.obs=2) {
 	d <- data.frame(
 		start = start_idx,
 		end = end_idx,
-		n = start_idx - end_idx + 1
+		n = end_idx - start_idx + 1
 	)
 
 	d[d$n >= min.obs, ]
