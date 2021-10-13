@@ -135,11 +135,20 @@ find_contiguous <- function(idx, max.gap=5, min.obs=2) {
 		end_idx <- end_idx[-length(end_idx)];
 	}
 
+	# count number of positive markers within each identified interval
+	ns <- mapply(
+		function(s, e) {
+			sum(idx >= s & idx <= e)
+		},
+		start_idx,
+		end_idx
+	);
+
 	d <- data.frame(
 		start = start_idx,
 		end = end_idx,
-		n = end_idx - start_idx + 1
-	)
+		n = ns
+	);
 
 	d[d$n >= min.obs, ]
 }
