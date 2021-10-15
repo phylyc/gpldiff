@@ -58,7 +58,7 @@ argmax_f_lp_direct <- function(y, g, mu, sigma2, K) {
 	solve(A, b)
 }
 
-# Compute a = b − D^{1/2} B^{-1} D^{1/2} S b
+# Compute a = b - D^{1/2} B^{-1} D^{1/2} S b
 # where
 #   B = I + D^{1/2} S D^{1/2}
 # Rasmussen & Williams 2006
