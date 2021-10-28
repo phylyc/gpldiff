@@ -28,16 +28,16 @@ argmax_sigma2_lp <- function(y, g, f, mu, alpha, beta) {
 #   D = G^2
 #   G = I g
 #   b = G (y - \mu \vec{1})
-# For stability, compute (S^{-1} + D)^{−1} as S − S D^{1/2} B^{-1} D^{1/2} S
+# For stability, compute (S^{-1} + D)^{-1} as S - S D^{1/2} B^{-1} D^{1/2} S
 # where
 #   B = I + D^{1/2} S D^{1/2}
 # Therefore,
-# (S^{-1} + D)^{-1} b = (S − S D^{1/2} B^{-1} D^{1/2} S) b
-#                     = S (I − D^{1/2} B^{-1} D^{1/2} S) b
-#                     = S (b − D^{1/2} B^{-1} D^{1/2} S b)
+# (S^{-1} + D)^{-1} b = (S - S D^{1/2} B^{-1} D^{1/2} S) b
+#                     = S (I - D^{1/2} B^{-1} D^{1/2} S) b
+#                     = S (b - D^{1/2} B^{-1} D^{1/2} S b)
 #                     = S a
 # where
-#   a = b − D^{1/2} B^{-1} D^{1/2} S b
+#   a = b - D^{1/2} B^{-1} D^{1/2} S b
 # Rasmussen & Williams 2006
 argmax_f_lp_rw <- function(y, g, mu, sigma2, K) {
 	S <- K / sigma2;
@@ -58,7 +58,7 @@ argmax_f_lp_direct <- function(y, g, mu, sigma2, K) {
 	solve(A, b)
 }
 
-# Compute a = b − D^{1/2} B^{-1} D^{1/2} S b
+# Compute a = b - D^{1/2} B^{-1} D^{1/2} S b
 # where
 #   B = I + D^{1/2} S D^{1/2}
 # Rasmussen & Williams 2006
