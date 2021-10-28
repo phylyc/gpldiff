@@ -705,13 +705,13 @@ plot.gpldiff <- function(model, data, which=NULL, center=FALSE, estimated=FALSE,
 	idx <- order(data$x);
 
 	if (center) {
-		data$y[data$g < 0] <- mean_center(data$y[data$g < 0]);
+		data$y[data$g <= 0] <- mean_center(data$y[data$g <= 0]);
 		data$y[data$g > 0] <- mean_center(data$y[data$g > 0]);
 	}
 		
 	par(mfrow=c(length(which),1), mai=c(0.8, 0.9, 0.1, 0.5));
 
-	g <- data$g[idx] >= 0;
+	g <- data$g[idx] > 0;
 	yhat <- (model$params$mu + model$params$f * data$g);
 
 	if ("response" %in% which) {
