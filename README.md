@@ -4,7 +4,7 @@ Package for fitting a Gaussian process model to detect latent difference between
 
 ### Installation ###
 
-The required documentation files for this package needs to generated before
+The required documentation files for this package needs to be generated before
 this package can be installed using `devtools`.
 
 ```
