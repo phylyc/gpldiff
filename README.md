@@ -7,7 +7,7 @@ Package for fitting a Gaussian process model to detect latent difference between
 The required documentation files for this package needs to be generated before
 this package can be installed using `devtools`.
 After cloning this repository, navigate to the directory of the cloned repository within R,
-do the following:
+and do the following:
 
 ```
 library(devtools)
