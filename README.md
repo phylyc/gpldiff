@@ -1,6 +1,6 @@
 # Gaussian process latent difference model #
 
-Package for fitting a Gaussian process model to detect latent difference between two populations, under the assumption that this latent difference is distributed as a multivariate Gaussian.
+Package for fitting a Gaussian process model to detect latent difference between two curves.
 
 ### Installation ###
 
