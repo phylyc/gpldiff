@@ -65,3 +65,12 @@ plot(fit, d)
 ```
 
 See `?gpldiff` for more information.
+
+
+### Citation ####
+
+If you use this tool in a scientific work , please cite:
+
+CNGPLD: case–control copy-number analysis using Gaussian process latent difference.
+David J H Shih, Ruoxing Li, Peter Müller, W Jim Zheng, Kim-Anh Do, Shiaw-Yih Lin, Scott L Carter.
+Bioinformatics. 2022 Feb 17;38(8):2096-2101. doi: 10.1093/bioinformatics/btac096.
