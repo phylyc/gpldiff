@@ -53,6 +53,7 @@ rldiff <- function(n, xlim=c(0, 10), xsigma=0.1, pg=c(0.5, 0.5), mu=0.5, sigma=0
 	)	
 }
 
+#' @export
 plot.ldiff_data <- function(object, fit) {
 	par(mfrow=c(4, 1));
 	
