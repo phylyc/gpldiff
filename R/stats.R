@@ -66,10 +66,12 @@ snr <- function(object) {
 	UseMethod("snr", object)
 }
 
+#' @export
 bias <- function(model, data, pars=NULL) {
 	UseMethod("bias", model)	
 }
 
+#' @export
 bias.default <- function(model, data, pars) {
 	if (is.null(pars)) {
 		pars <- names(data);

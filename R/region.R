@@ -67,7 +67,9 @@ find_sig_regions <- function(model, data, lodds.cut=5, max.gap=5, min.obs=2, dir
 				ridx <- regions$start_idx[ri]:regions$end_idx[ri];
 				y <- data$y[ridx];
 				g <- data$g[ridx];
-				mean(y[g > 0]) - mean(y[g < 0])
+				g1.idx <- which(g > 0);
+				g2.idx <- which(g < 0);
+				mean(y[g1.idx]) - mean(y[g2.idx])
 			}
 		));
 
@@ -206,12 +208,13 @@ process_regions <- function(regions, direction=1) {
 
 	# filter problematic regions
 	# regions with NaN diff are usually spurious
-	if (direction > 0) {
-		# regions with negative diff are contradictory... numeric instability in the code???
-		regions.f <- regions[is.finite(regions$diff) & regions$diff > 0, ]
-	} else {
-		regions.f <- regions[is.finite(regions$diff) & regions$diff < 0, ]
-	}
+	# if (direction > 0) {
+	# 	# regions with negative diff are contradictory... numeric instability in the code???
+	# 	regions.f <- regions[is.finite(regions$diff) & regions$diff > 0, ]
+	# } else {
+	# 	regions.f <- regions[is.finite(regions$diff) & regions$diff < 0, ]
+	# }
+	regions.f <- regions;
 
 	# calculate Bayesian FDR
 	regions.f$fdr <- bayesian_fdr(regions.f$posterior);
