@@ -33,6 +33,8 @@ fixed <- list(
 	f = FALSE
 );
 
+# ---
+
 # sigma2 needs to be overestimated for better fit... why?
 # set to 0.1^2 = 0.01 but estimate is ~0.3
 # if sigma2 is constrained to known value, then 
