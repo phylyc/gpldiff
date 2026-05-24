@@ -6,16 +6,17 @@
 # conditioned on all other parameters and hyperparameters
 # Compute \hat{mu}
 #   = \frac{\tau^2}{J \tau^2 + \sigma^2} \sum_{j=1}^{J} y_j - g_j f_j
-argmax_mu_lp <- function(y, g, f, sigma2, tau2) {
-	tau2 / (length(y) * tau2 + sigma2) * sum(y - g * f)
+argmax_mu_lp <- function(y, g, f, sigma2, tau2, w = rep(1, length(y))) {
+	r <- y - g * f
+	tau2 * sum(w * r) / (sigma2 + tau2 * sum(w))
 }
 
 # Find sigma^2 that maximizes the posterior of sigma^2
 # conditioned on all other parameters and hyperparameters
 # Compute \hat{sigma^2} = (\beta + (1/2) ||y - \mu - G f||^2) / (J/2 + \alpha + 1)
-argmax_sigma2_lp <- function(y, g, f, mu, alpha, beta) {
-	d <- y - mu - (g * f);
-	( beta + 0.5 * sum(d*d) ) / ( length(y) / 2 + alpha + 1 )
+argmax_sigma2_lp <- function(y, g, f, mu, alpha, beta, w = rep(1, length(y))) {
+	d <- y - mu - (g * f)
+	( beta + 0.5 * sum(w * d * d) ) / ( length(y) / 2 + alpha + 1 )
 }
 
 
@@ -39,10 +40,16 @@ argmax_sigma2_lp <- function(y, g, f, mu, alpha, beta) {
 # where
 #   a = b - D^{1/2} B^{-1} D^{1/2} S b
 # Rasmussen & Williams 2006
-argmax_f_lp_rw <- function(y, g, mu, sigma2, K) {
-	S <- K / sigma2;
-	b <- g * (y - mu);
-	a <- compute_a(S, b, g);
+argmax_f_lp_rw <- function(y, g, mu, sigma2, K, w = rep(1, length(y))) {
+	S <- K / sigma2
+
+	# D = G W G, so D^{1/2} can be signed as g * sqrt(w)
+	dsqrt <- g * sqrt(w)
+
+	# b = G W (y - mu)
+	b <- g * w * (y - mu)
+
+	a <- compute_a(S, b, dsqrt)
 	S %*% a
 }
 
@@ -52,8 +59,8 @@ argmax_f_lp_rw <- function(y, g, mu, sigma2, K) {
 # NB Solve(K) costs O(n^3) time
 # NB Without regularization of K, solve(K) may not be invertible
 argmax_f_lp_direct <- function(y, g, mu, sigma2, K) {
-	A <- solve(K %*% diag(g)) * sigma2 + diag(g);
-	b <- y - mu;
+	A <- solve(K %*% diag(g)) * sigma2 + diag(g)
+	b <- y - mu
 	# \hat{f} = A \ b
 	solve(A, b)
 }
@@ -63,14 +70,14 @@ argmax_f_lp_direct <- function(y, g, mu, sigma2, K) {
 #   B = I + D^{1/2} S D^{1/2}
 # Rasmussen & Williams 2006
 compute_a <- function(S, b, dsqrt) {
-	n <- nrow(S);
-	Dsqrt <- diag(dsqrt);
+	n <- nrow(S)
+	Dsqrt <- diag(dsqrt)
 
-	B <- diag(1, nrow=n, ncol=n) + (Dsqrt %*% S %*% Dsqrt);
+	B <- diag(1, nrow=n, ncol=n) + (Dsqrt %*% S %*% Dsqrt)
 
 	# decompose B into L U
-	U <- chol(B);
-	L <- t(U);
+	U <- chol(B)
+	L <- t(U)
 
 	# thus, B^{-1} = (L U)^{-1} = U^{-1} L^{-1}
 	# A^{-1} b == solve(A, b)
@@ -88,28 +95,27 @@ compute_a <- function(S, b, dsqrt) {
 #   G = diag(g)
 #   b = G (y - \mu)
 argmax_f_lp_invert <- function(y, g, mu, sigma2, K) {
-	Ainv <- invert_add_invert_rw(K / sigma2, g);
-	b <- g * (y - mu);
+	Ainv <- invert_add_invert_rw(K / sigma2, g)
+	b <- g * (y - mu)
 	Ainv %*% b
 }
 
-argmax_f_lp <- argmax_f_lp_rw;
+argmax_f_lp <- argmax_f_lp_rw
 
 # Compute the covariance matrix of the Laplace approximation
 # of the posterior of f conditioned on the hyperparameters
 # Compute \hat{V} = ( K^{-1} + G^2 / sigma2 )^{-1}
 # NB define D = G^2 / sigma2
 # NB invert_add_invert_rw takes Dsqrt
-f_laplace_covariance <- function(g, sigma2, K) {
-	invert_add_invert_rw(K, g / sqrt(sigma2))
+f_laplace_covariance <- function(g, sigma2, K, w = rep(1, length(g))) {
+	invert_add_invert_rw(K, g * sqrt(w) / sqrt(sigma2))
 }
 
 # Compute variance vector of the Lapalce approximation
 # of the posterior of f conditioned on the hyperparameters
 # This vector consists of the diagonal elements of the covariance matrix
-f_laplace_variance <- function(g, sigma2, K) {
-	# TODO compute only diagonal elements
-	diag(f_laplace_covariance(g, sigma2, K))
+f_laplace_variance <- function(g, sigma2, K, w = rep(1, length(g))) {
+	diag(f_laplace_covariance(g, sigma2, K, w = w))
 }
 
 # Compute the laplace approximation of the log marginal likelihood (model evidence)
@@ -147,64 +153,69 @@ f_laplace_variance <- function(g, sigma2, K) {
 ll_g_hparams <- function(data, params, hparams, K=NULL, hgradient=FALSE) {
 
 	if (is.null(K)) {
-		K <- kernel_matrix(data$x, squared_exponential_kernel, nu2=hparams$nu2, lambda2=hparams$lambda2);
+		K <- kernel_matrix(data$x, squared_exponential_kernel, nu2=hparams$nu2, lambda2=hparams$lambda2)
 	}
 
-	mu <- params$mu;
-	sigma2 <- params$sigma2;
-	f <- params$f;
+	mu <- params$mu
+	sigma2 <- params$sigma2
+	f <- params$f
 
-	J <- length(data$y);
-	y <- data$y;
-	g <- data$g;
+	J <- length(data$y)
+	y <- data$y
+	g <- data$g
+	w <- if (is.null(data$w)) rep(1, length(data$y)) else data$w
 
-	alpha = hparams$alpha;
-	beta = hparams$beta;
-	tau2 = hparams$tau2;
+	alpha = hparams$alpha
+	beta = hparams$beta
+	tau2 = hparams$tau2
 
-	d <- y - mu - (g * f);
-	W <- diag(g * g / sigma2);
-	KW <- K %*% W;
+	d <- y - mu - (g * f)
+
+	# Q is the f-likelihood precision contribution:
+	# Q = G W_obs G / sigma2
+	Q <- diag(g * g * w / sigma2)
+	KW <- K %*% Q
 
 	# Ideally,
-	# ft.Kinv.f <- ft_kinv_f(y, g, f, mu, sigma2, K);
+	# ft.Kinv.f <- ft_kinv_f(y, g, f, mu, sigma2, K)
 	# but vector a is needed later
-	S <- K / sigma2;
-	b <- g * (y - mu);
-	a <- compute_a(S, b, g);
-	ft.Kinv.f <- sum(a * f) / sigma2;
+	S <- K / sigma2
+	b <- g * w * (y - mu)
+	a <- compute_a(S, b, g * sqrt(w))
+	ft.Kinv.f <- sum(a * f) / sigma2
 
-	eye <- diag(1, nrow=J, ncol=J);
+	eye <- diag(1, nrow=J, ncol=J)
 
 	# laplace approximation of the log marginal likelihood
 	ll <- - 0.5 * (
 		(J + 2*alpha + 2) * log(sigma2) +
 		2 * beta / sigma2 +
-		sum(d * d) / sigma2 +
+		sum(w * d * d) / sigma2 +
 		log(tau2) +
 		mu * mu / tau2 +
 		ft.Kinv.f +
-		det(KW + eye, log=TRUE)
-	);
+		det(KW + eye, log=TRUE) -
+		sum(log(w))
+	)
 
 	if (hgradient) {
-		# compute explicit gradient of marginal likelihood w.r.t. to nu^2 and lambda^2
+		# compute explicit gradient of marginal likelihood w.r.t. nu^2 and lambda^2
 
-		nu2 <- hparams$nu2;
-		lambda2 <- hparams$lambda2;
+		nu2 <- hparams$nu2
+		lambda2 <- hparams$lambda2
 
-		E <- solve(eye + KW, KW);
-		
-		gll_nu2 <- 0.5 * (1/nu2) * (ft.Kinv.f - sum(diag(E)));
+		E <- solve(eye + KW, KW)
 
-		V <- kernel_matrix(data$x, squared_kernel, lambda2=lambda2*lambda2);
-		K.V <- K * V;
+		gll_nu2 <- 0.5 * (1/nu2) * (ft.Kinv.f - sum(diag(E)))
+
+		V <- kernel_matrix(data$x, squared_kernel, lambda2=lambda2*lambda2)
+		K.V <- K * V
 		gll_lambda2 <- 0.5 * 1/(sigma2*sigma2) * t(a) %*% K.V %*% a -
-			0.5 * sum(diag( solve(eye + KW, K.V %*% W) ));
+			0.5 * sum(diag( solve(eye + KW, K.V %*% Q) ))
 
 		list(evidence = ll, gradient = list(nu2 = gll_nu2, lambda2 = gll_lambda2))
 	} else {
-		ll
+		list(evidence = ll)
 	}
 }
 
@@ -216,9 +227,9 @@ ll_g_hparams <- function(data, params, hparams, K=NULL, hgradient=FALSE) {
 #                   = 1/sigma2 a^\top K K^{-1} f
 #                   = a^\top f / sigma2
 ft_kinv_f <- function(y, g, f, mu, sigma2, K) {
-	S <- K / sigma2;
-	b <- g * (y - mu);
-	a <- compute_a(S, b, g);
+	S <- K / sigma2
+	b <- g * (y - mu)
+	a <- compute_a(S, b, g)
 	sum(a * f) / sigma2
 }
 
@@ -236,12 +247,12 @@ invert_add_invert_direct <- function(S, D) {
 # where B = I + D^{1/2} S D^{1/2}
 # Rasmussen & Williams 2006
 invert_add_invert_rw <- function(S, dsqrt) {
-	n <- nrow(S);
-	Dsqrt <- diag(dsqrt);
-	B <- diag(1, nrow=n, ncol=n) + (Dsqrt %*% S %*% Dsqrt);
+	n <- nrow(S)
+	Dsqrt <- diag(dsqrt)
+	B <- diag(1, nrow=n, ncol=n) + (Dsqrt %*% S %*% Dsqrt)
 	# compute S - S %*% Dsqrt %*% solve(B) %*% Dsqrt %*% S
-	U <- chol(B);
-	L <- t(U);
+	U <- chol(B)
+	L <- t(U)
 	S - S %*% Dsqrt %*% solve(U, solve(L, Dsqrt %*% S))
 }
 
@@ -253,14 +264,26 @@ default_hparams <- function() {
 		alpha = 0.1,
 		beta = 0.1,
 		tau2 = 10
-	);
+	)
 }
 
+get_weights <- function(data) {
+	if (is.null(data$w)) {
+		rep(1, length(data$y))
+	} else {
+		stopifnot(length(data$w) == length(data$y))
+		stopifnot(all(is.finite(data$w)))
+		stopifnot(all(data$w > 0))
+		data$w
+	}
+}
+
+
 # Fit model parameters with hyperparameters fixed
-fit_params <- function(data, params, hparams, tol=1e-5, max.iter=10, predict=TRUE, plot=FALSE, fixed=NULL, hgradient=TRUE) {
+fit_params <- function(data, params, hparams, tol=1e-5, max.iter=10, predict=TRUE, plot=FALSE, fixed=NULL, hgradient=FALSE) {
 
 	if (is.null(hparams)) {
-		hparams <- default_hparams();
+		hparams <- default_hparams()
 	}
 
 	# initial guess
@@ -269,7 +292,7 @@ fit_params <- function(data, params, hparams, tol=1e-5, max.iter=10, predict=TRU
 			mu = 0,
 			sigma2 = 1,
 			f = rep(0, data$J)
-		);
+		)
 	}
 
 	if (is.null(fixed)) {
@@ -277,34 +300,35 @@ fit_params <- function(data, params, hparams, tol=1e-5, max.iter=10, predict=TRU
 			mu = FALSE,
 			sigma2 = FALSE,
 			f = FALSE
-		);
+		)
 	}
 
-	K <- kernel_matrix(data$x, squared_exponential_kernel, nu2=hparams$nu2, lambda2=hparams$lambda2);
+	K <- kernel_matrix(data$x, squared_exponential_kernel, nu2=hparams$nu2, lambda2=hparams$lambda2)
+	w <- get_weights(data)
 
-	delta <- Inf;
-	niters <- 0;
+	delta <- Inf
+	niters <- 0
 	while (delta > tol) {
-		old <- unlist(params);
+		old <- unlist(params)
 
 		if (!fixed$f) {
-			params$f <- argmax_f_lp(data$y, data$g, params$mu, params$sigma2, K);
+			params$f <- argmax_f_lp(data$y, data$g, params$mu, params$sigma2, K, w = w)
 			if (any(is.nan(params$f))) {
-				print(str(params$f));
+				print(str(params$f))
 				stop("Numerical difficulties encountered; `f` contains NaN values.")
 			}
 		}
 		if (!fixed$mu) {
-			params$mu <- argmax_mu_lp(data$y, data$g, params$f, params$sigma2, hparams$tau2);
+			params$mu <- argmax_mu_lp(data$y, data$g, params$f, params$sigma2, hparams$tau2, w = w)
 			if (any(is.nan(params$mu))) {
-				print(str(params$mu));
+				print(str(params$mu))
 				stop("Numerical difficulties encountered; `mu` is NaN.")
 			}
 		}
 		if (!fixed$sigma2) {
-			params$sigma2 <- argmax_sigma2_lp(data$y, data$g, params$f, params$mu, hparams$alpha, hparams$beta);
+			params$sigma2 <- argmax_sigma2_lp(data$y, data$g, params$f, params$mu, hparams$alpha, hparams$beta, w = w)
 			if (any(is.nan(params$sigma2))) {
-				print(str(params$sigma2));
+				print(str(params$sigma2))
 				stop("Numerical difficulties encountered: `sigma2` is NaN.")
 			}
 		}
@@ -313,30 +337,32 @@ fit_params <- function(data, params, hparams, tol=1e-5, max.iter=10, predict=TRU
 			graphics::plot(data$x, params$f)
 		}
 
-		delta <- norm(as.matrix(old - unlist(params)), "F");
+		delta <- norm(as.matrix(old - unlist(params)), "F")
 		if (is.na(delta)) {
-			print(str(params));
+			print(str(params))
 			stop("Numerical difficulties encountered; `params` contain NaN values.")
 		}
 
-		niters <- niters + 1;
-		if (niters >= max.iter) break;
+		niters <- niters + 1
+		if (niters >= max.iter) break
 	}
 
-	model <- list(params = params, hparams = hparams, niters=niters);
+	model <- list(params = params, hparams = hparams, niters=niters)
 	if (predict) {
+		fcov <- f_laplace_covariance(data$g, params$sigma2, K, w = w)
 		model$predict <- list(
-			fvar = f_laplace_variance(data$g, params$sigma2, K),
+			fvar = diag(fcov),
+			fcov = fcov,
 			K = K
-		);
+		)
 	}
 
-	res <- ll_g_hparams(data, params, hparams, K, hgradient=hgradient);
-	model$evidence <- res$evidence;
+	res <- ll_g_hparams(data, params, hparams, K, hgradient=hgradient)
+	model$evidence <- res$evidence
 	if (hgradient) {
-		model$gradient <- res$gradient;
+		model$gradient <- res$gradient
 	}
-	class(model) <- "gpldiff";
+	class(model) <- "gpldiff"
 
 	model
 }
@@ -379,11 +405,11 @@ adam_step <- function(momentum, learn.rate = 0.01, eps = 1e-8) {
 #' The model is
 #'
 #' \code{
-#'    K_{ij} = k(x_i, x_j);
-#'    f ~ multi_normal(0, K);
-#'	  mu ~ normal(0, tau);
-#'	  sigma^2 ~ inv_gamma(alpha, beta);
-#'	  y ~ normal(mu + (f .* g), sigma);
+#'    K_{ij} = k(x_i, x_j)
+#'    f ~ multi_normal(0, K)
+#'	  mu ~ normal(0, tau)
+#'	  sigma^2 ~ inv_gamma(alpha, beta)
+#'	  y ~ normal(mu + (f .* g), sigma)
 #' }
 #'
 #' where \code{k(x_i, x_j)} is the squared exponential covariance function and
@@ -423,40 +449,40 @@ adam_step <- function(momentum, learn.rate = 0.01, eps = 1e-8) {
 #' )
 #' params <- NULL
 #' fit <- gpldiff(data, params, hparams)
-#' plot(fit, data);
+#' plot(fit, data)
 #' }
 #'
 gpldiff <- function(data, params=NULL, hparams=NULL, adapt=c("none", "GD", "GDM", "ADAM", "L-BFGS-B", "Brent"), learn.rate=0.2, tol=1e-1, tol2=1e-1, max.iter=10, max.iter2=10, predict=TRUE, verbose=1, ...) {
 	if (is.null(hparams)) {
-		hparams <- default_hparams();
+		hparams <- default_hparams()
 	}
 
 	if (verbose >= 1) {
-		time.began <- proc.time();
-		message("J: ", data$J);
+		time.began <- proc.time()
+		message("J: ", data$J)
 	}
 
-	adapt <- match.arg(adapt);
+	adapt <- match.arg(adapt)
 
-	check_data(data);
+	check_data(data)
 
-	niters <- 0;
+	niters <- 0
 	if (adapt != "none") {
 		# find hyperparameter values lambda and nu that maximize the log marginal likelihood
 		# NB other hyperparameters are fixed
-		delta <- Inf;
-		old.ll <- -Inf;
+		delta <- Inf
+		old.ll <- -Inf
 
 		if (adapt == "GDM") {
-			m.lambda2 <- NA;
-			m.nu2 <- NA;
+			m.lambda2 <- NA
+			m.nu2 <- NA
 		} else if (adapt == "ADAM") {
-			m.lambda2 <- c(0.0, 0.0);
-			m.nu2 <- c(0.0, 0.0);
+			m.lambda2 <- c(0.0, 0.0)
+			m.nu2 <- c(0.0, 0.0)
 		}
 
 		while (delta > tol2) {
-			niters <- niters + 1;
+			niters <- niters + 1
 			if (verbose >= 2) {
 				message("iteration ", niters)
 			}
@@ -470,8 +496,8 @@ gpldiff <- function(data, params=NULL, hparams=NULL, adapt=c("none", "GD", "GDM"
 				#      learning rate or step size for that parameter
 
 				res <- fit_params(data, params, hparams, tol=tol, max.iter=max.iter, predict=FALSE,
-													hgradient=TRUE);
-				ll <- res$evidence;
+													hgradient=TRUE)
+				ll <- res$evidence
 
 				if (verbose >= 2) {
 					message("hparams: ", hparams$nu2, " ", hparams$lambda2)
@@ -480,48 +506,48 @@ gpldiff <- function(data, params=NULL, hparams=NULL, adapt=c("none", "GD", "GDM"
 
 				if (ll < old.ll) {
 					# ll has gotten worse: backtrack and reduce the learning rate
-					hparams <- hparams.old;
-					learn.rate <- learn.rate * 0.5;
-					old.ll <- -Inf;
+					hparams <- hparams.old
+					learn.rate <- learn.rate * 0.5
+					old.ll <- -Inf
 					if (verbose >= 2) {
 						message("log evidence: ", ll)
 						message("learn rate: ", learn.rate)
 						message("backtracking ...")
 					}
 
-					next;
+					next
 				} else {
 					# continue updating hyperparameters
-					hparams.old <- hparams;
-					hparams$lambda2 <- hparams$lambda2 + learn.rate * res$gradient$lambda2;
-					hparams$nu2 <- hparams$nu2 + learn.rate * res$gradient$nu2;
+					hparams.old <- hparams
+					hparams$lambda2 <- hparams$lambda2 + learn.rate * res$gradient$lambda2
+					hparams$nu2 <- hparams$nu2 + learn.rate * res$gradient$nu2
 				}
 
 			} else if (adapt == "GDM") {
 
 				# Gradient descent with momentum update
 
-				m.lambda2 <- momentum(m.lambda2, res$gradient$lambda2);
-				m.nu2 <- momentum(m.nu2, res$gradient$nu2);
+				m.lambda2 <- momentum(m.lambda2, res$gradient$lambda2)
+				m.nu2 <- momentum(m.nu2, res$gradient$nu2)
 
-				hparams$lambda2 <- hparams$lambda2 + m.lambda2;
-				hparams$nu2 <- hparams$nu2 + m.nu2;
+				hparams$lambda2 <- hparams$lambda2 + m.lambda2
+				hparams$nu2 <- hparams$nu2 + m.nu2
 
 			} else if (adapt == "ADAM") {
 
 				# ADAM did not seem to work well: it keeps getting stuck due to
 				# second moment becoming very large
 
-				m.lambda2 <- adam(m.lambda2, -res$gradient$lambda2, niters);
-				m.nu2 <- adam(m.nu2, -res$gradient$nu2, niters);
-				step.lambda2 <- adam_step(m.lambda2, learn.rate=learn.rate);
-				step.nu2 <- adam_step(m.nu2, learn.rate=learn.rate);
-				hparams$lambda2 <- hparams$lambda2 - step.lambda2;
-				hparams$nu2 <- hparams$nu2 - step.nu2;
+				m.lambda2 <- adam(m.lambda2, -res$gradient$lambda2, niters)
+				m.nu2 <- adam(m.nu2, -res$gradient$nu2, niters)
+				step.lambda2 <- adam_step(m.lambda2, learn.rate=learn.rate)
+				step.nu2 <- adam_step(m.nu2, learn.rate=learn.rate)
+				hparams$lambda2 <- hparams$lambda2 - step.lambda2
+				hparams$nu2 <- hparams$nu2 - step.nu2
 
 				if (verbose >= 2) {
-					message("ADAM m1: ", m.nu2[1], " ", m.lambda2[1]);
-					message("ADAM m2: ", m.nu2[2], " ", m.lambda2[2]);
+					message("ADAM m1: ", m.nu2[1], " ", m.lambda2[1])
+					message("ADAM m2: ", m.nu2[2], " ", m.lambda2[2])
 					message("ADAM step: ", step.nu2, " ", step.lambda2)
 				}
 
@@ -544,8 +570,8 @@ gpldiff <- function(data, params=NULL, hparams=NULL, adapt=c("none", "GD", "GDM"
 						llambda = log(sqrt(hparams$lambda2))
 					),
 					fn = function(par) {
-						hparams$nu2 <- exp(par[1])^2;
-						hparams$lambda2 <- exp(par[2])^2;
+						hparams$nu2 <- exp(par[1])^2
+						hparams$lambda2 <- exp(par[2])^2
 						if (verbose >= 2) {
 							message("hparams: ", hparams$nu2, " ", hparams$lambda2)
 						}
@@ -553,75 +579,75 @@ gpldiff <- function(data, params=NULL, hparams=NULL, adapt=c("none", "GD", "GDM"
 											 predict=FALSE)$evidence
 					},
 					gr = function(par) {
-						hparams$nu2 <- exp(par[1])^2;
-						hparams$lambda2 <- exp(par[2])^2;
+						hparams$nu2 <- exp(par[1])^2
+						hparams$lambda2 <- exp(par[2])^2
 						unlist(fit_params(data, params, hparams, tol=tol, max.iter=max.iter,
 											 predict=FALSE, hgradient=TRUE)$gradient)
 					},
 					lower = -10, upper = 10,
 					method = "L-BFGS-B",
 					control = list(abtol=tol, retol=tol, pgtol=tol, fnscale=-1, maxit=max.iter)
-				);
+				)
 
-				hparams$nu2 <- exp(opt$par[1])^2;
-				hparams$lambda2 <- exp(opt$par[2])^2;
-				ll <- opt$value;
+				hparams$nu2 <- exp(opt$par[1])^2
+				hparams$lambda2 <- exp(opt$par[2])^2
+				ll <- opt$value
 
 			} else {
 
 				opt.lambda <- optimize(
 					function(lambda) {
-						hparams$lambda2 <- lambda^2;
+						hparams$lambda2 <- lambda^2
 						fit_params(data, params, hparams, tol=tol, max.iter=max.iter,
 											 predict=FALSE)$evidence
 					},
 					interval = c(0, max(2*IQR(data$x), 1)),
 					maximum=TRUE,
 					tol=tol
-				);
-				hparams$lambda2 <- opt.lambda$maximum^2;
+				)
+				hparams$lambda2 <- opt.lambda$maximum^2
 
 				opt.nu <- optimize(
 					function(nu) {
-						hparams$nu2 <- nu^2;
+						hparams$nu2 <- nu^2
 						fit_params(data, params, hparams, tol=tol, max.iter=max.iter,
 											 predict=FALSE)$evidence
 					},
 					interval = c(0, max(2*IQR(data$y), 1)),
 					maximum=TRUE,
 					tol=tol
-				);
-				hparams$nu2 <- opt.nu$maximum^2;
+				)
+				hparams$nu2 <- opt.nu$maximum^2
 
-				ll <- opt.nu$objective;
+				ll <- opt.nu$objective
 			}
 
 			if (verbose >= 2) {
-				message("log evidence: ", ll);
+				message("log evidence: ", ll)
 			}
 
 			# enforce bounds
 			if (hparams$lambda2 <= 0) {
-				hparams$lambda2 <- 1e-3;
+				hparams$lambda2 <- 1e-3
 			}
 			if (hparams$nu2 <= 0) {
-				hparams$nu2 <- 1e-3;
+				hparams$nu2 <- 1e-3
 			}
 
-			delta <- ll - old.ll;
-			old.ll <- ll;
+			delta <- ll - old.ll
+			old.ll <- ll
 
-			if (niters >= max.iter2) break;
+			if (niters >= max.iter2) break
 		}
 	}
 
-	model <- fit_params(data, params, hparams, tol=tol, max.iter=max.iter, predict=predict, ...);
-	model$niters <- c(model$niters, niters);
+	model <- fit_params(data, params, hparams, tol=tol, max.iter=max.iter, predict=predict, ...)
+	model$niters <- c(model$niters, niters)
 
 	if (verbose >= 1) {
-		message("final log evidence: ", model$evidence);
-		elapsed <- proc.time() - time.began;
-		message("elapsed wall time: ", elapsed[3]);
+		message("final log evidence: ", model$evidence)
+		elapsed <- proc.time() - time.began
+		message("elapsed wall time: ", elapsed[3])
 	}
 
 	model
@@ -636,20 +662,20 @@ gpldiff <- function(data, params=NULL, hparams=NULL, adapt=c("none", "GD", "GDM"
 #' @export
 #' @examples
 #' \dontrun{
-#' cint <- confint(fit);
-#' with(data, mean(f >= cint$lower & f <= cint$upper));
+#' cint <- confint(fit)
+#' with(data, mean(f >= cint$lower & f <= cint$upper))
 #' }
 #'
 confint.gpldiff <- function(object, parm=NULL, level=0.95, ...) {
-	alpha <- 1 - level;
-	z <- qnorm(1 - alpha/2);
+	alpha <- 1 - level
+	z <- qnorm(1 - alpha/2)
 	if (is.null(object$predict)) {
-		stop("`gpldiff` object must have been created by calling `gpldiff()` with `predict=TRUE`");
+		stop("`gpldiff` object must have been created by calling `gpldiff()` with `predict=TRUE`")
 	}
-	r <- z * sqrt(object$predict$fvar);
+	r <- z * sqrt(object$predict$fvar)
 	cint <- with(object$param,
 		data.frame(lower = f - r, upper = f + r)
-	);
+	)
 	cint
 }
 
@@ -662,16 +688,16 @@ confint.gpldiff <- function(object, parm=NULL, level=0.95, ...) {
 #'
 coverage.gpldiff <- function(model, data, level=0.95) {
 	if (is.null(model$predict)) {
-		stop("`gpldiff` object must have been created by calling `gpldiff()` with `predict=TRUE`");
+		stop("`gpldiff` object must have been created by calling `gpldiff()` with `predict=TRUE`")
 	}
 
 	if (is.list(data)) {
-		f <- data$f;
+		f <- data$f
 	} else {
-		f <- data;
+		f <- data
 	}
 
-	msd <- list(mean=model$params$f, sd=sqrt(model$predict$fvar));
+	msd <- list(mean=model$params$f, sd=sqrt(model$predict$fvar))
 	coverage(msd, f, level=level)
 }
 
@@ -691,81 +717,81 @@ mean_center <- function(x) {
 #'
 plot.gpldiff <- function(model, data, which=NULL, center=FALSE, estimated=FALSE, xlab="x") {
 	if (!is.null(model$predict)) {
-		cint <- confint(model);
-		flim <- c(min(cint[,1]), max(cint[,2]));
-		flim[1] <- flim[1] - diff(flim)*0.2;
+		cint <- confint(model)
+		flim <- c(min(cint[,1]), max(cint[,2]))
+		flim[1] <- flim[1] - diff(flim)*0.2
 	} else {
-		cint <- NULL;
+		cint <- NULL
 	}
 
 	if (is.null(which)) {
-		which <- c("response", "residual", "latent", "odds");
+		which <- c("response", "residual", "latent", "odds")
 	}
 
-	idx <- order(data$x);
+	idx <- order(data$x)
 
 	if (center) {
-		data$y[data$g <= 0] <- mean_center(data$y[data$g <= 0]);
-		data$y[data$g > 0] <- mean_center(data$y[data$g > 0]);
+		data$y[data$g <= 0] <- mean_center(data$y[data$g <= 0])
+		data$y[data$g > 0] <- mean_center(data$y[data$g > 0])
 	}
 		
-	par(mfrow=c(length(which),1), mai=c(0.8, 0.9, 0.1, 0.5));
+	par(mfrow=c(length(which),1), mai=c(0.8, 0.9, 0.1, 0.5))
 
-	g <- data$g[idx] > 0;
-	yhat <- (model$params$mu + model$params$f * data$g);
+	g <- data$g[idx] > 0
+	yhat <- (model$params$mu + model$params$f * data$g)
 
 	if ("response" %in% which) {
 		# plot observed data
-		ylim <- range(data$y);
-		ylim[1] <- ylim[1] - diff(ylim)*0.2;
-		plot(NA, xlim=range(data$x), ylim=ylim, xlab="", ylab="observed responses", las=1);
-		lines(data$x[idx][!g], data$y[idx][!g], col="#0073C2FF", pch=20, type="b", lwd=2);
-		lines(data$x[idx][g], data$y[idx][g], col="#EFC000FF", pch=20, type="b", lwd=2);
-		legend("bottomright", inset=0.01, col=c("#EFC000FF", "#0073C2FF"), lwd=2, legend=c("case", "control"), bty="n");
+		ylim <- range(data$y)
+		ylim[1] <- ylim[1] - diff(ylim)*0.2
+		plot(NA, xlim=range(data$x), ylim=ylim, xlab="", ylab="observed responses", las=1)
+		lines(data$x[idx][!g], data$y[idx][!g], col="#0073C2FF", pch=20, type="b", lwd=2)
+		lines(data$x[idx][g], data$y[idx][g], col="#EFC000FF", pch=20, type="b", lwd=2)
+		legend("bottomright", inset=0.01, col=c("#EFC000FF", "#0073C2FF"), lwd=2, legend=c("case", "control"), bty="n")
 		# plot estimated data
 		if (estimated) {
 			points(data$x[idx][!g], yhat[idx][!g], col="#0073C2FF", pch=21, type="b")
 			points(data$x[idx][g], yhat[idx][g], col="#EFC000FF", pch=21, type="b")
-			legend("bottomleft", inset=0.01, pch=c(20, 21), legend=c("observed", "estimated"), bty="n");
+			legend("bottomleft", inset=0.01, pch=c(20, 21), legend=c("observed", "estimated"), bty="n")
 		}
 	}
 
 	if ("residual" %in% which) {
 		# plot residual of y_hat
-		r <- data$y - yhat;
-		rlim <- range(r);
-		rlim[1] <- rlim[1] - diff(rlim)*0.2;
-		cols <- c("#0073C2FF", "#EFC000FF")[as.integer(g)+1];
-		plot(data$x[idx], r[idx], col=cols, pch=20, xlab="", ylab="residual", ylim=rlim, las=1);
-		abline(h = 0, col="grey30", lty=2);
-		legend("bottomleft", inset=0.01, pch=20, col=c("#EFC000FF", "#0073C2FF"), legend=c("case", "control"), bty="n");
+		r <- data$y - yhat
+		rlim <- range(r)
+		rlim[1] <- rlim[1] - diff(rlim)*0.2
+		cols <- c("#0073C2FF", "#EFC000FF")[as.integer(g)+1]
+		plot(data$x[idx], r[idx], col=cols, pch=20, xlab="", ylab="residual", ylim=rlim, las=1)
+		abline(h = 0, col="grey30", lty=2)
+		legend("bottomleft", inset=0.01, pch=20, col=c("#EFC000FF", "#0073C2FF"), legend=c("case", "control"), bty="n")
 	}
 
 	# plot latent difference f_hat
 	if ("latent" %in% which) {
-		plot(NA, xlim=range(data$x), ylim=flim, xlab="", ylab="latent difference f", las=1);
+		plot(NA, xlim=range(data$x), ylim=flim, xlab="", ylab="latent difference f", las=1)
 		if (!is.null(data$f)) {
-			points(data$x, data$f, pch=20, col="#868686FF");
-			legend("bottomleft", inset=0.01, col=c("#868686FF", "#CD534CFF"), pch=c(20, 21), legend=c("truth", "estimated"), bty="n");
+			points(data$x, data$f, pch=20, col="#868686FF")
+			legend("bottomleft", inset=0.01, col=c("#868686FF", "#CD534CFF"), pch=c(20, 21), legend=c("truth", "estimated"), bty="n")
 		}
-		abline(h = 0, col="grey30", lty=2);
-		points(data$x[idx], model$params$f[idx], col="#CD534CFF", pch=21);
+		abline(h = 0, col="grey30", lty=2)
+		points(data$x[idx], model$params$f[idx], col="#CD534CFF", pch=21)
 		if (!is.null(cint)) {
-			lines(data$x[idx], cint[idx,1], col="#CD534C55", lwd=2);
-			lines(data$x[idx], cint[idx,2], col="#CD534C55", lwd=2);
+			lines(data$x[idx], cint[idx,1], col="#CD534C55", lwd=2)
+			lines(data$x[idx], cint[idx,2], col="#CD534C55", lwd=2)
 		}
 	}
 
 	# plot log posterior odds
 	if ("odds" %in% which) {
-		lodds.cut <- 5;
-		lodds <- summary(model, log.odds=TRUE);
+		lodds.cut <- 5
+		lodds <- summary(model, log.odds=TRUE)
 		plot(NA, xlim=range(data$x[idx]), ylim=range(lodds[idx]),
-			xlab=xlab, ylab="log posterior odds", las=1);
-		abline(h = 0, col="grey30", lty=2);
-		abline(h = -lodds.cut, col="grey30");
-		abline(h = lodds.cut, col="grey30");
-		lines(data$x[idx], lodds[idx], col="#CD534CFF", pch=20, lwd=2);
+			xlab=xlab, ylab="log posterior odds", las=1)
+		abline(h = 0, col="grey30", lty=2)
+		abline(h = -lodds.cut, col="grey30")
+		abline(h = lodds.cut, col="grey30")
+		lines(data$x[idx], lodds[idx], col="#CD534CFF", pch=20, lwd=2)
 	}
 }
 
@@ -779,11 +805,11 @@ plot.gpldiff <- function(model, data, which=NULL, center=FALSE, estimated=FALSE,
 #'
 summary.gpldiff <- function(object, log.odds = FALSE, ...) {
 	if (is.null(object$predict)) {
-		stop("`gpldiff` object must have been created by calling `gpldiff()` with `predict=TRUE`");
+		stop("`gpldiff` object must have been created by calling `gpldiff()` with `predict=TRUE`")
 	}
 
-	f <- object$params$f;
-	fsd <- sqrt(object$predict$fvar);
+	f <- object$params$f
+	fsd <- sqrt(object$predict$fvar)
 
 	if (log.odds) {
 		pnorm(0, mean=f, sd=fsd, lower.tail=FALSE, log=TRUE) -
@@ -795,20 +821,20 @@ summary.gpldiff <- function(object, log.odds = FALSE, ...) {
 }
 
 subset_gpldiff <- function(x, start, end) {
-	idx <- which(x$data$x >= start & x$data$x <= end);
-	d <- x$data;
-	m <- x$model;
+	idx <- which(x$data$x >= start & x$data$x <= end)
+	d <- x$data
+	m <- x$model
 
-	x.sub <- x;
+	x.sub <- x
 	x.sub$data <- list(
 		J = length(idx),
 		x = d$x[idx],
 		g = d$g[idx],
 		y = d$y[idx]
-	);
-	x.sub$model$params$f <- m$params$f[idx];
-	x.sub$model$predict$fvar <-m$predict$fvar[idx];
-	x.sub$model$predict$K <-m$predict$K[idx, idx];
+	)
+	x.sub$model$params$f <- m$params$f[idx]
+	x.sub$model$predict$fvar <-m$predict$fvar[idx]
+	x.sub$model$predict$K <-m$predict$K[idx, idx]
 
 	x.sub
 }
@@ -828,9 +854,16 @@ snr.gpldiff <- function(object) {
 }
 
 check_data <- function(data) {
-	stopifnot(data$J > 0);
-	stopifnot(!any(is.na(data$x)));
-	stopifnot(!any(is.na(data$y)));
-	stopifnot(!any(is.na(data$g)));
+	stopifnot(data$J > 0)
+	stopifnot(!any(is.na(data$x)))
+	stopifnot(!any(is.na(data$y)))
+	stopifnot(!any(is.na(data$g)))
+
+	if (!is.null(data$w)) {
+		stopifnot(length(data$w) == length(data$y))
+		stopifnot(!any(is.na(data$w)))
+		stopifnot(all(is.finite(data$w)))
+		stopifnot(all(data$w > 0))
+	}
 }
 

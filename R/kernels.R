@@ -11,7 +11,7 @@
 #' @param lambda2  characteristic length scale parameter (squared)
 #' @export
 squared_exponential_kernel <- function(xi, xj, nu2, lambda2) {
-	d <- xi - xj;
+	d <- xi - xj
 	nu2 * exp(-0.5 * sum(d * d) / lambda2)
 }
 
@@ -20,7 +20,7 @@ squared_exponential_kernel <- function(xi, xj, nu2, lambda2) {
 # w.r.t. lambda^2
 # k(xi, xj) = -1/(2 lambda^2) ||x_i − x_j||^2
 squared_kernel <- function(xi, xj, lambda2) {
-	d <- xi - xj;
+	d <- xi - xj
 	0.5 * sum(d * d) / lambda2
 }
 
@@ -34,9 +34,9 @@ squared_kernel <- function(xi, xj, lambda2) {
 #' 
 #' @export
 kernel_matrix <- function(x, covar_f, ...) {
-	x <- as.matrix(x);
-	n <- nrow(x);
-	K <- matrix(0, nrow=n, ncol=n);
+	x <- as.matrix(x)
+	n <- nrow(x)
+	K <- matrix(0, nrow=n, ncol=n)
 	K[lower.tri(K, diag=TRUE)] <-
 		unlist(lapply(1:n,
 			function(i) {
@@ -47,6 +47,6 @@ kernel_matrix <- function(x, covar_f, ...) {
 				))
 			}
 		))
-	K[upper.tri(K)] <- t(K)[upper.tri(K)];
+	K[upper.tri(K)] <- t(K)[upper.tri(K)]
 	K
 }

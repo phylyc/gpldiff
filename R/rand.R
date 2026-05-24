@@ -15,18 +15,18 @@
 #' @export
 #'
 rcurve <- function(x, m=10, alpha=0.5, beta=0.5, closed=FALSE, plot=FALSE) {
-	N <- length(x);
-	steps <- rpois((m-2), N/(m-1));
-	idx <- c(1, cumsum(steps), N);
-	valid <- idx <= N;
-	idx <- idx[valid];
-	m <- sum(valid);
+	N <- length(x)
+	steps <- rpois((m-2), N/(m-1))
+	idx <- c(1, cumsum(steps), N)
+	valid <- idx <= N
+	idx <- idx[valid]
+	m <- sum(valid)
 	if (closed) {
-		z <- c(0, rbeta(m-2, alpha, beta), 0);
+		z <- c(0, rbeta(m-2, alpha, beta), 0)
 	} else {
-		z <- rbeta(m, alpha, beta);
+		z <- rbeta(m, alpha, beta)
 	}
-	sf <- splinefun(x[idx], z, method="natural");
+	sf <- splinefun(x[idx], z, method="natural")
 
 	if (plot) {
 		base::plot(x, sf(x), type="l", col="red")
@@ -54,10 +54,10 @@ rcurve <- function(x, m=10, alpha=0.5, beta=0.5, closed=FALSE, plot=FALSE) {
 #'
 rpolynomial <- function(x, d=10, alpha=1, beta=1, plot=FALSE) {
 	# coefficients
-	beta <- rbeta(d, alpha, beta) * 2 - 1;;
+	beta <- rbeta(d, alpha, beta) * 2 - 1
 
 	f <- function(x) {
-		X <- matrix(unlist(lapply(0:(d-1), function(n) x^n)), nrow=length(x));
+		X <- matrix(unlist(lapply(0:(d-1), function(n) x^n)), nrow=length(x))
 		X %*% beta
 	}
 

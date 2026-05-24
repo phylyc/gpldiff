@@ -28,13 +28,13 @@ coverage <- function (model, data, ...) {
 #'
 coverage.default <- function(model, data, level=0.95) {
 	if (length(model) != 2 || !is.list(model) || is.null(model$mean) || is.null(model$sd)) {
-		stop("basic model must be a normal confidence interval specified by list(mean, sd)");
+		stop("basic model must be a normal confidence interval specified by list(mean, sd)")
 	}
-	m <- model$mean;
-	s <- model$sd;
-	alpha <- 1 - level;
-	lower <- qnorm(alpha/2, m, s);
-	upper <- qnorm(1 - alpha/2, m, s);
+	m <- model$mean
+	s <- model$sd
+	alpha <- 1 - level
+	lower <- qnorm(alpha/2, m, s)
+	upper <- qnorm(1 - alpha/2, m, s)
 
 	mean(lower <= data & data <= upper)
 }
@@ -74,9 +74,9 @@ bias <- function(model, data, pars=NULL) {
 #' @export
 bias.default <- function(model, data, pars) {
 	if (is.null(pars)) {
-		pars <- names(data);
+		pars <- names(data)
 	}
-	names(pars) <- pars;
+	names(pars) <- pars
 	lapply(pars,
 		function(p) {
 			model[[p]] - data[[p]]

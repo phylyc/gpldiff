@@ -37,16 +37,16 @@ find_sig_regions <- function(model, data, lodds.cut=5, max.gap=5, min.obs=2, dir
 	process=TRUE) {
 	# find candidate regions
 
-	prob <- summary(model);
+	prob <- summary(model)
 	if (direction <= 0) {
-		prob <- 1 - prob;
+		prob <- 1 - prob
 	}
 
-	lodds <- log(prob) - log(1 - prob);
-	idx <- which(lodds > lodds.cut);
+	lodds <- log(prob) - log(1 - prob)
+	idx <- which(lodds > lodds.cut)
 	
-	intervals <- find_contiguous(idx, max.gap=max.gap, min.obs=min.obs);
-	if (is.null(intervals)) return(NULL);
+	intervals <- find_contiguous(idx, max.gap=max.gap, min.obs=min.obs)
+	if (is.null(intervals)) return(NULL)
 
 	# construct start and end indices of candidate regions
 	regions <- data.frame(
@@ -55,7 +55,7 @@ find_sig_regions <- function(model, data, lodds.cut=5, max.gap=5, min.obs=2, dir
 		start_idx = intervals$start,
 		end_idx = intervals$end,
 		n_obs = intervals$n
-	);
+	)
 
 	if (nrow(regions) > 0) {
 		# TODO avoid duplication
@@ -64,29 +64,29 @@ find_sig_regions <- function(model, data, lodds.cut=5, max.gap=5, min.obs=2, dir
 		regions$diff <- unlist(lapply(
 			1:nrow(regions),
 			function(ri) {
-				ridx <- regions$start_idx[ri]:regions$end_idx[ri];
-				y <- data$y[ridx];
-				g <- data$g[ridx];
-				g1.idx <- which(g > 0);
-				g2.idx <- which(g < 0);
+				ridx <- regions$start_idx[ri]:regions$end_idx[ri]
+				y <- data$y[ridx]
+				g <- data$g[ridx]
+				g1.idx <- which(g > 0)
+				g2.idx <- which(g < 0)
 				mean(y[g1.idx]) - mean(y[g2.idx])
 			}
-		));
+		))
 
 		# calculate mean latent difference
 		regions$ldiff <- unlist(lapply(
 			1:nrow(regions),
 			function(ri) {
-				ridx <- regions$start_idx[ri]:regions$end_idx[ri];
+				ridx <- regions$start_idx[ri]:regions$end_idx[ri]
 				mean(model$params$f[ridx])
 			}
-		));
+		))
 
 		# calculate posterior probabilies
 		regions$posterior <- unlist(lapply(
 			1:nrow(regions),
 			function(ri) {
-				ridx <- regions$start_idx[ri]:regions$end_idx[ri];
+				ridx <- regions$start_idx[ri]:regions$end_idx[ri]
 				p <- region_posterior(ridx, data, model)
 				if (direction > 0) {
 					p
@@ -94,7 +94,7 @@ find_sig_regions <- function(model, data, lodds.cut=5, max.gap=5, min.obs=2, dir
 					1 - p
 				}
 			}
-		));
+		))
 	}
 
 	if (process) {
@@ -113,7 +113,7 @@ find_sig_regions <- function(model, data, lodds.cut=5, max.gap=5, min.obs=2, dir
 # @return start and end indexes of intervals that contain stretches of
 # positivity
 find_contiguous <- function(idx, max.gap=5, min.obs=2) {
-	if (length(idx) <= 1) return(NULL);
+	if (length(idx) <= 1) return(NULL)
 	# mark contiguous start and ends with 1 and -1 respectively
 	# gap size between two contiguous regions is j - i - 1
 	# where i is the end index of the first region
@@ -121,20 +121,20 @@ find_contiguous <- function(idx, max.gap=5, min.obs=2) {
 	# therefore, j - i - 1 <= max.gap
 	#            j - i <= max.gap + 1
 	# note the start (1) and end (-1) markers inserted at both ends
-	boundaries <- c(1, diff(diff(idx) <= max.gap + 1), -1);
+	boundaries <- c(1, diff(diff(idx) <= max.gap + 1), -1)
 
-	start_idx <- idx[which(boundaries == 1)];
-	end_idx <- idx[which(boundaries == -1)];
+	start_idx <- idx[which(boundaries == 1)]
+	end_idx <- idx[which(boundaries == -1)]
 
 	if (length(start_idx) >= 2 && end_idx[1] > start_idx[2]) {
 		# second region starts before the first segment ends
 		# first region is a singleton and not marked by an end marker
-		start_idx <- start_idx[-1];
+		start_idx <- start_idx[-1]
 	}
 
 	if (length(end_idx) >= 2 && start_idx[length(start_idx)] < end_idx[length(end_idx)-1]) {
 		# last region is a singleton and not marked by a start marker
-		end_idx <- end_idx[-length(end_idx)];
+		end_idx <- end_idx[-length(end_idx)]
 	}
 
 	# count number of positive markers within each identified interval
@@ -144,27 +144,40 @@ find_contiguous <- function(idx, max.gap=5, min.obs=2) {
 		},
 		start_idx,
 		end_idx
-	);
+	)
 
 	d <- data.frame(
 		start = start_idx,
 		end = end_idx,
 		n = ns
-	);
+	)
 
 	d[d$n >= min.obs, ]
 }
 
 # calculate the posterior probability that mean f in region > 0
 region_posterior <- function(ridx, data, model) {
-	n <- length(ridx);
-	mean_region <- mean(model$params$f[ridx]);
-	# TODO compute full covariance matrix once and subset it as needed?
-	covar_region <- f_laplace_covariance(data$g[ridx], model$params$sigma2, model$predict$K[ridx, ridx]);
-	se_region <- sqrt(sum(covar_region) / n);
+	n <- length(ridx)
+	mean_region <- mean(model$params$f[ridx])
+
+	if (!is.null(model$predict$fcov)) {
+		covar_region <- model$predict$fcov[ridx, ridx, drop = FALSE]
+	} else {
+		w <- if (is.null(data$w)) rep(1, length(data$y)) else data$w
+		covar_region <- f_laplace_covariance(
+			data$g[ridx],
+			model$params$sigma2,
+			model$predict$K[ridx, ridx, drop=FALSE],
+			w = w[ridx]
+		)
+	}
+
+	# TODO: THIS STANDARD ERROR SHOULD SCALE LIKE 1/n
+	# Here, 1 / sqrt(n) seems to be a necessary variance infalation
+	se_region <- sqrt(sum(covar_region) / n)
 
 	# Pr(mean_region > 0)
-	posterior<- pnorm(0, mean=mean_region, sd=se_region, lower.tail=FALSE);
+	posterior<- pnorm(0, mean=mean_region, sd=se_region, lower.tail=FALSE)
 	posterior
 }
 
@@ -177,9 +190,9 @@ overlap <- function(s1, e1, s2, e2) {
 # assume coordinates are 1-based, closed
 jaccard_similarity <- function(s1, e1, s2, e2) {
 	# region of overlap
-	so <- pmax(s1, s2);
-	eo <- pmin(e1, e2);
-	ints <- eo - so + 1;
+	so <- pmax(s1, s2)
+	eo <- pmin(e1, e2)
+	ints <- eo - so + 1
 
 	ifelse(ints > 0,
 		# D = \frac{ |X \cap Y| }{ |X| + |Y| - |X \cap Y| }
@@ -202,9 +215,9 @@ jaccard_similarity <- function(s1, e1, s2, e2) {
 #' @export
 #'
 process_regions <- function(regions, direction=1) {
-	if (is.null(regions)) return(NULL);
+	if (is.null(regions)) return(NULL)
 
-	regions <- regions[order(regions$posterior, decreasing=TRUE), ];
+	regions <- regions[order(regions$posterior, decreasing=TRUE), ]
 
 	# filter problematic regions
 	# regions with NaN diff are usually spurious
@@ -214,10 +227,10 @@ process_regions <- function(regions, direction=1) {
 	# } else {
 	# 	regions.f <- regions[is.finite(regions$diff) & regions$diff < 0, ]
 	# }
-	regions.f <- regions;
+	regions.f <- regions
 
 	# calculate Bayesian FDR
-	regions.f$fdr <- bayesian_fdr(regions.f$posterior);
+	regions.f$fdr <- bayesian_fdr(regions.f$posterior)
 
 	regions.f
 }
