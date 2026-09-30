@@ -9,7 +9,12 @@
 #'
 #' @param model  \code{gpldiff} model
 #' @param data   data object to which \code{gpldiff} model was fitted
-#' @param lodds.cut   threshold for log odds for determining candidate regions
+#' @param lodds.cut   threshold for log odds for determining candidate support regions
+#' @param lodds.core  optional higher log odds threshold for identifying peak cores.
+#'                    If greater than \code{lodds.cut}, support regions containing
+#'                    multiple cores can be split at intervening valleys.
+#' @param min.prominence minimum log-odds drop from the weaker of two adjacent
+#'                    cores to the intervening valley required to split them
 #' @param max.gap     if the gap size between two adjacent candidate regions
 #'                    is less than this threshold, then these regions are
 #'                    merged together
@@ -34,7 +39,7 @@
 #' @export
 #'
 find_sig_regions <- function(model, data, lodds.cut=5, max.gap=5, min.obs=2, direction=1,
-	process=TRUE) {
+	process=TRUE, lodds.core=NULL, min.prominence=1.5) {
 	# find candidate regions
 
 	prob <- summary(model)
@@ -56,6 +61,18 @@ find_sig_regions <- function(model, data, lodds.cut=5, max.gap=5, min.obs=2, dir
 		end_idx = intervals$end,
 		n_obs = intervals$n
 	)
+
+	# A low lodds.cut can join nearby high-confidence peaks into one broad
+	# support region. If requested, split such regions at sufficiently deep
+	# log-odds valleys between distinct lodds.core runs before region scoring.
+	if (!is.null(lodds.core) && lodds.core > lodds.cut && nrow(regions) > 0) {
+		regions <- split_peak_regions(
+			regions, lodds, data$x,
+			lodds.cut=lodds.cut, lodds.core=lodds.core,
+			min.prominence=min.prominence, min.obs=min.obs
+		)
+		if (is.null(regions) || nrow(regions) == 0) return(NULL)
+	}
 
 	if (nrow(regions) > 0) {
 		# TODO avoid duplication
@@ -102,6 +119,99 @@ find_sig_regions <- function(model, data, lodds.cut=5, max.gap=5, min.obs=2, dir
 	} else {
 		regions
 	}
+}
+
+# Split low-threshold support regions into distinct high-confidence peaks.
+# Cores are contiguous runs with lodds > lodds.core. Adjacent cores are split
+# only when the log-odds valley between them has sufficient prominence.
+# @param regions   candidate support regions
+# @param lodds     log-odds vector
+# @param x         x values corresponding to lodds
+# @param lodds.cut threshold for log odds for determining candidate support regions
+# @param lodds.core optional higher log odds threshold for identifying peak cores.
+#                    If greater than \code{lodds.cut}, support regions containing
+#                    multiple cores can be split at intervening valleys.
+# @param min.prominence minimum log-odds drop from the weaker of two adjacent
+#                    cores to the intervening valley required to split them
+# @param min.obs   minimum number of observations required for any significant region
+# @return  \code{data.frame} of split regions
+split_peak_regions <- function(regions, lodds, x, lodds.cut, lodds.core,
+	min.prominence=1.5, min.obs=2) {
+
+	split_one <- function(region) {
+		s <- region$start_idx
+		e <- region$end_idx
+		ridx <- s:e
+		is.core <- lodds[ridx] > lodds.core
+
+		# Identify contiguous core runs. A single core point is allowed here;
+		# min.obs continues to apply to the final support region.
+		r <- rle(is.core)
+		run.ends <- cumsum(r$lengths)
+		run.starts <- c(1, run.ends[-length(run.ends)] + 1)
+		core.runs <- which(r$values)
+
+		if (length(core.runs) <= 1) {
+			return(region)
+		}
+
+		core.starts <- ridx[run.starts[core.runs]]
+		core.ends <- ridx[run.ends[core.runs]]
+
+		# Use the strongest point in each core to define its peak.
+		peak.idx <- mapply(
+			function(cs, ce) {
+				z <- cs:ce
+				z[which.max(lodds[z])]
+			},
+			core.starts, core.ends
+		)
+		peak.idx <- as.integer(peak.idx)
+
+		# Split at the minimum log odds between adjacent core peaks only if
+		# the valley is sufficiently deep relative to the weaker peak.
+		split.idx <- integer()
+		for (i in seq_len(length(peak.idx) - 1L)) {
+			between <- peak.idx[i]:peak.idx[i + 1L]
+			valley <- between[which.min(lodds[between])]
+			prominence <- min(lodds[peak.idx[i]], lodds[peak.idx[i + 1L]]) -
+				lodds[valley]
+			if (is.finite(prominence) && prominence >= min.prominence) {
+				split.idx <- c(split.idx, valley)
+			}
+		}
+
+		if (length(split.idx) == 0) {
+			return(region)
+		}
+
+		split.idx <- sort(unique(split.idx))
+		starts <- c(s, split.idx + 1L)
+		ends <- c(split.idx, e)
+
+		children <- mapply(
+			function(cs, ce) {
+				n <- sum(lodds[cs:ce] > lodds.cut)
+				if (n < min.obs) return(NULL)
+				data.frame(
+					start = x[cs],
+					end = x[ce],
+					start_idx = cs,
+					end_idx = ce,
+					n_obs = n
+				)
+			},
+			starts, ends,
+			SIMPLIFY=FALSE
+		)
+		do.call(rbind, children)
+	}
+
+	out <- lapply(seq_len(nrow(regions)), function(i) split_one(regions[i, , drop=FALSE]))
+	out <- do.call(rbind, out)
+	if (is.null(out) || nrow(out) == 0) return(NULL)
+	rownames(out) <- NULL
+	out
 }
 
 # find contiguous positive intervals from an index vector
